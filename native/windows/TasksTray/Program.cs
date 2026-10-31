@@ -371,7 +371,7 @@ internal sealed class TrayContext : ApplicationContext
             graphics.FillEllipse(brush, 2, 2, 28, 28);
             using var white = new SolidBrush(Color.White);
             if (state == "running")
-                graphics.FillPolygon(white, [new Point(12, 9), new Point(12, 23), new Point(24, 16)]);
+                graphics.FillPolygon(white, new Point[] { new(12, 9), new(12, 23), new(24, 16) });
             else if (state == "paused")
             {
                 graphics.FillRectangle(white, 10, 9, 4, 14);
