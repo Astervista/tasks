@@ -1,4 +1,5 @@
-# Setup: see DEPLOY.md. In short: cp .env.example .env (set TASKS_TOKEN), mkdir data, sh scripts/deploy.sh
+# Setup: see DEPLOY.md. The server joins the reverse proxy's network and publishes no port, so only
+# the proxy reaches it (as http://tasks-server:8080).
 services:
   tasks:
     build: .
@@ -7,7 +8,16 @@ services:
     env_file: .env
     # Runs as the host user that owns the data folder, so the Markdown files stay yours to read, copy and back up
     user: "${TASKS_UID:-1000}:${TASKS_GID:-1000}"
-    ports:
-      - "${BIND:-127.0.0.1}:${PORT:-8080}:8080"
+    expose:
+      - "8080"
     volumes:
       - "${DATA_PATH:-./data}:/data"
+    networks:
+      proxy:
+        aliases:
+          - tasks-server
+
+networks:
+  proxy:
+    name: ${PROXY_NETWORK:-proxy_network}
+    external: true

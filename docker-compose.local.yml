@@ -1,0 +1,7 @@
+# Local testing without a reverse proxy: also publishes the server on 127.0.0.1:8080.
+# Use it with COMPOSE_FILE=docker-compose.yml:docker-compose.local.yml in .env,
+# after creating the network once: docker network create proxy_network
+services:
+  tasks:
+    ports:
+      - "127.0.0.1:${PORT:-8080}:8080"
