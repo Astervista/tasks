@@ -1,0 +1,13 @@
+node_modules
+dist
+.nx
+.angular
+.idea
+.vscode
+legacy
+native
+coverage
+tmp
+.env
+**/.DS_Store
+data

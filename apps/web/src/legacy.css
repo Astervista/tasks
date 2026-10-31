@@ -1,0 +1,778 @@
+html {
+    height: 100%;
+}
+
+body {
+    -webkit-filter: blur(0px);
+    background: #2A2A2A;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: auto;
+}
+
+input, textarea {
+    color: white;
+}
+
+label {
+    pointer-events: none;
+    user-select: none;
+}
+
+.no-select {
+    user-select: none;
+}
+
+.sub-folder[sub-level=s0] {
+    border: solid 2px #ff2222;
+    color: #ff2222;
+}
+
+.sub-folder[sub-level=s1] {
+    border: solid 2px orangered;
+    color: orangered;
+}
+
+.sub-folder[sub-level=s2] {
+    border: solid 2px orange;
+    color: orange;
+}
+
+.sub-folder[sub-level=s3] {
+    border: solid 2px teal;
+    color: teal;
+}
+
+.sub-folder[sub-level=s4] {
+    border: solid 2px royalblue;
+    color: royalblue;
+}
+
+.sub-folder[sub-level=s5] {
+    border: solid 2px #c4f;
+    color: #c4f;
+}
+
+.sub-folder[sub-level=s6] {
+    border: solid 2px deeppink;
+    color: deeppink;
+}
+
+.sub-folder.selected[sub-level=s0] {
+    background: #ff2222;
+}
+
+.sub-folder.selected[sub-level=s1] {
+    background: orangered;
+}
+
+.sub-folder.selected[sub-level=s2] {
+    background: orange;
+}
+
+.sub-folder.selected[sub-level=s3] {
+    background: teal;
+}
+
+.sub-folder.selected[sub-level=s4] {
+    background: royalblue;
+}
+
+.sub-folder.selected[sub-level=s5] {
+    background: #c4f;
+}
+
+.sub-folder.selected[sub-level=s6] {
+    background: deeppink;
+}
+
+.button {
+    border-radius: 25px;
+    padding: 7px;
+    text-align: center;
+    font-size: 16px;
+    text-transform: uppercase;
+    background: dodgerblue;
+    position: relative;
+    min-width: 120px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.button:after {
+    border-radius: 25px;
+    position: absolute;
+    left: 0;
+    top: 0;
+    content: " ";
+    display: block;
+    width: 100%;
+    background: transparent;
+    height: 100%;
+    transition: background-color 200ms;
+}
+
+.button:hover:after {
+    background: rgba(255, 255, 255, 0.15);
+    transition: background-color 200ms;
+}
+
+.button:active:after {
+    background: rgba(255, 255, 255, 0.3);
+    transition: background-color 200ms;
+}
+
+.sub-folder {
+    display: inline-block;
+    cursor: pointer;
+    user-select: none;
+    font-weight: 700;
+    padding: 3px 10px 6px;
+    font-size: 15px;
+    margin: 5px;
+    border-radius: 20px;
+}
+
+.subTodo {
+    border: solid 2px forestgreen;
+    color: forestgreen;
+    display: inline-block;
+    cursor: pointer;
+    user-select: none;
+    font-weight: 700;
+    padding: 3px 10px 6px;
+    font-size: 15px;
+    margin: 5px;
+}
+#address-bar>.sub-folder,.subTodo {
+    cursor: auto;
+}
+
+.sub-folder.selected {
+    color: #2A2A2A;
+}
+
+.subTodo.selected {
+    background: forestgreen;
+    color: #2A2A2A;
+}
+
+.task-group {
+    user-select: none;
+}
+
+.task-line {
+    transition: background 300ms;
+    padding: 18px 0;
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: stretch;
+}
+
+.task-line.header {
+    user-select: none;
+    font-weight: 700;
+}
+
+.task-line.header:hover {
+    background: transparent;
+}
+
+.task-line:hover {
+    background: #333;
+}
+
+.task-line > span {
+    display: flex;
+    align-items: center;
+    flex-direction: row;
+}
+
+.task-line-name {
+    flex-basis: 0;
+    flex-grow: 3;
+    margin: 0 10px 0 15px;
+}
+
+.task-line-creation {
+    flex-basis: 0;
+    flex-grow: 2;
+    margin: 0 10px 0 10px;
+}
+
+.task-line-running {
+    flex-basis: 0;
+    flex-grow: 2;
+    margin: 0 10px 0 10px;
+}
+
+.task-line-completion {
+    flex-basis: 0;
+    flex-grow: 2;
+    margin: 0 10px 0 10px;
+}
+
+.header > .task-line-weight {
+    height: auto;
+}
+
+.task-line-weight {
+    position: relative;
+    flex-basis: 0;
+    flex-grow: 1;
+    margin: 0 10px 0 10px;
+}
+
+.task-line-weight-progress {
+    overflow: hidden;
+    padding-top: 4px;
+    padding-left: 10px;
+    color: #222;
+    position: absolute;
+    background: indianred;
+    height: 30px;
+}
+
+.task-line-weight-back {
+    overflow: hidden;
+    color: indianred;
+    padding-top: 4px;
+    padding-left: 10px;
+    position: absolute;
+    height: 30px;
+}
+
+.task-line-status {
+    position: relative;
+    flex-basis: 90px;
+    margin: 0 10px 0 10px;
+    width: 90px;
+}
+
+.task-line-counter {
+    flex-basis: 0;
+    flex-grow: 2;
+    margin: 0 10px 0 15px;
+}
+
+.task-line.header > span.sort-asc:after {
+    content: "unfold_more sort";
+    float: right;
+    font-family: 'Material Icons';
+    color: yellow;
+    transform: scaleY(-1) translate(0.25px, 1px);
+    margin-left: auto;
+}
+
+.task-line.header > span.sort-desc:after {
+    content: "unfold_more sort";
+    float: right;
+    font-family: 'Material Icons';
+    color: yellow;
+    margin-left: auto;
+}
+
+.task-line-details {
+    padding: 20px;
+}
+
+.task-line-buttons {
+    display: flex;
+    padding: 0 10px 10px;
+}
+
+.task-line-button {
+    flex-grow: 1;
+}
+
+.task-line-buttons > .button {
+    margin: 0 10px;
+}
+
+.button-delete {
+    background-color: crimson;
+    order: 5;
+}
+
+.button-delete:before {
+    font-family: "Material Icons";
+    text-transform: none;
+    content: "delete";
+    margin: 10px;
+}
+
+.button-play {
+    background-color: forestgreen;
+    order: 2;
+}
+
+.button-play:before {
+    font-family: "Material Icons";
+    text-transform: none;
+    content: "play_arrow";
+    margin: 10px;
+}
+
+.button-pause {
+    background-color: orange;
+    order: 2;
+}
+
+.button-pause:before {
+    font-family: "Material Icons";
+    text-transform: none;
+    content: "pause";
+    margin: 10px;
+}
+
+.button-reset {
+    background-color: #FF3300;
+    order: 4;
+}
+
+.button-reset:before {
+    font-family: "Material Icons";
+    text-transform: none;
+    content: "timer_off";
+    margin: 10px;
+}
+
+.button-done {
+    background-color: darkgreen;
+    order: 3;
+}
+
+.button-done:before {
+    font-family: "Material Icons";
+    text-transform: none;
+    content: "done";
+    margin: 10px;
+}
+
+.button-restart {
+    background-color: cornflowerblue;
+    order: 3;
+}
+
+.button-restart:before {
+    font-family: "Material Icons";
+    text-transform: none;
+    content: "restart_alt";
+    margin: 10px;
+}
+
+.button-edit {
+    background-color: rebeccapurple;
+    order: 1;
+}
+
+.button-edit:before {
+    font-family: "Material Icons";
+    text-transform: none;
+    content: "edit";
+    margin: 10px;
+}
+
+.modal-close.button {
+    margin: 10px;
+    padding: 5px 20px;
+}
+
+.modal {
+    background: #333333;
+    border-radius: 15px;
+}
+
+.modal .modal-footer {
+    display: flex;
+    padding: 20px;
+    flex-direction: row-reverse;
+    align-items: center;
+    height: 90px;
+    background: #333333;
+}
+
+.modal .modal-content {
+    padding: 20px 20px 5px;
+}
+
+.input-field .helper-text {
+    color: #BBB;
+}
+
+input[type=text]:not(.browser-default):focus:not([readonly]) + label {
+    color: goldenrod;
+}
+
+input[type=text]:not(.browser-default):focus:not([readonly]) {
+    border-bottom: 1px solid goldenrod;
+    -webkit-box-shadow: 0 1px 0 0 goldenrod;
+    box-shadow: 0 1px 0 0 goldenrod;
+}
+
+textarea:not(.browser-default):focus:not([readonly]) + label {
+    color: goldenrod;
+}
+
+textarea:not(.browser-default):focus:not([readonly]) {
+    border-bottom: 1px solid goldenrod;
+    -webkit-box-shadow: 0 1px 0 0 goldenrod;
+    box-shadow: 0 1px 0 0 goldenrod;
+}
+
+.particle {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+}
+
+#address {
+    flex-grow: 1;
+    margin: 10px;
+    padding: 5px;
+    width: auto;
+    border-bottom: none;
+    box-shadow: none;
+    height: auto;
+    color: white;
+    order: 1;
+}
+
+#address-space {
+    display: none;
+    flex-grow: 1;
+    order: 1;
+    height: 48px;
+}
+
+label[for=address] {
+    color: white;
+    font-size: 15px;
+    margin: 10px 0 10px 10px;
+    order: 0;
+}
+
+#address-bar {
+    background: #444;
+    align-items: center;
+    display: flex;
+    width: 100%;
+    flex-wrap: wrap;
+}
+
+#suggestion-bar {
+    width: 100%;
+    background: #333;
+    padding: 7px;
+}
+
+#tasks {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+#address-close {
+    display: none;
+    order: 2;
+    color: orangered;
+    margin: 10px;
+    cursor: pointer;
+    user-select: none;
+}
+
+
+#status-bar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    user-select: none;
+}
+
+#status-left-ext {
+    flex-grow: 1;
+    flex-basis: 0;
+    text-align: left;
+    margin: 15px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+#status-left-int {
+    flex-grow: 1.5;
+    flex-basis: 0;
+    text-align: left;
+    margin: 15px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+#status-add {
+    flex-grow: 1.5;
+    margin: 25px;
+}
+
+#status-add:before {
+    font-family: "Material Icons";
+    text-transform: none;
+    content: "add";
+    margin: 10px;
+}
+
+#status-right-int {
+    flex-grow: 1.5;
+    flex-basis: 0;
+    text-align: right;
+    margin: 15px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+#status-right-ext {
+    flex-grow: 1;
+    flex-basis: 0;
+    text-align: right;
+    margin: 15px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+#effects {
+    width: 100%;
+    height: 100%;
+    position: fixed;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+}
+
+#loading {
+    width: 100%;
+    height: 100%;
+    position: fixed;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+    transition: transform 1s;
+    transform: scale(1);
+}
+#error {
+    width: 100%;
+    height: 100%;
+    position: fixed;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+    transition: transform 1s;
+    transform: scale(0);
+}
+
+
+
+#hourglass {
+    position: relative;
+    left: calc(50% - 12px);
+    top: calc(50% - 12px);
+    animation-name: hourglass-anim;
+    animation-duration: 6s;
+    animation-iteration-count: infinite;
+    animation-timing-function: linear;
+}
+#triangle-error {
+    transform: scale(13);
+    pointer-events: none;
+}
+#triangle-error-path {
+    animation-name: jump;
+    animation-duration: 10s;
+    animation-iteration-count: infinite;
+    animation-timing-function: ease-in-out;
+    transform-origin: 12px 17px;
+}
+#triangle-error-triangle {
+    animation-name: triangle-rotate;
+    animation-duration: 10s;
+    animation-iteration-count: infinite;
+    animation-timing-function: linear;
+    transform-origin: 12px 14.67px;
+}
+
+#hourglass-sand-up {
+    animation-name: sand-up-anim;
+    animation-duration: 6s;
+    animation-iteration-count: infinite;
+    animation-timing-function: linear;
+}
+#hourglass-sand-down {
+    animation-name: sand-down-anim;
+    animation-duration: 6s;
+    animation-iteration-count: infinite;
+    animation-timing-function: linear;
+}
+
+@keyframes sand-up-anim {
+    0% {
+        height: 6px;
+        y: 6px;
+    }
+    30% {
+        height: 0;
+        y: 12px;
+        opacity: 1;
+    }
+    31% {
+        opacity: 0;
+        y: 12px;
+    }
+    32% {
+        y: 4px;
+        opacity: 0;
+    }
+    33% {
+        opacity: 1;
+    }
+    50% {
+        y: 4px;
+        height: 0;
+    }
+    80% {
+        y: 4px;
+        height: 6px;
+    }
+    90% {
+        y: 4px;
+        height: 6px;
+    }
+    100% {
+        height: 6px;
+        y: 6px;
+    }
+}
+
+@keyframes sand-down-anim {
+    0% {
+        height: 0;
+        y: 20px;
+    }
+    30% {
+        height: 6px;
+        y: 14px;
+    }
+    40% {
+        height: 6px;
+        y: 14px;
+    }
+    50% {
+        height: 6px;
+        y: 12px;
+    }
+    80% {
+        height: 0;
+        y: 12px;
+        opacity: 1;
+    }
+    81% {
+        y: 12px;
+        opacity: 0;
+    }
+    82% {
+        y: 20px;
+        opacity: 0;
+    }
+    83% {
+        opacity: 1;
+    }
+}
+
+@keyframes hourglass-anim {
+    0% {
+        transform: rotate(0deg) scale(13);
+    }
+    30% {
+        transform: rotate(0deg) scale(13);
+    }
+    50% {
+        transform: rotate(180deg) scale(13);
+    }
+    80% {
+        transform: rotate(180deg) scale(13);
+    }
+    100% {
+        transform: rotate(360deg) scale(13);
+    }
+}
+
+@keyframes jump {
+    20% {
+        transform: scaleX(1) scaleY(1);
+    }
+    25% {
+        transform: scaleX(0.8) scaleY(1.2);
+    }
+    30% {
+        transform: scaleX(1) scaleY(1);
+    }
+
+    50% {
+        transform: scaleX(1) scaleY(1);
+    }
+    51% {
+        transform: scaleX(1) scaleY(1) rotate(5deg);
+    }
+    52% {
+        transform: scaleX(1) scaleY(1);
+    }
+    53% {
+        transform: scaleX(1) scaleY(1) rotate(-5deg);
+    }
+    54% {
+        transform: scaleX(1) scaleY(1);
+    }
+    55% {
+        transform: scaleX(1) scaleY(1) rotate(5deg);
+    }
+    56% {
+        transform: scaleX(1) scaleY(1);
+    }
+    57% {
+        transform: scaleX(1) scaleY(1) rotate(-5deg);
+    }
+    58% {
+        transform: scaleX(1) scaleY(1);
+    }
+    59% {
+        transform: scaleX(1) scaleY(1) rotate(5deg);
+    }
+    60% {
+        transform: scaleX(1) scaleY(1);
+    }
+}
+@keyframes triangle-rotate {
+    0% {
+        transform: rotate(0deg);
+    }
+    80% {
+        transform: rotate(0deg);
+    }
+    83% {
+        transform: translateY(-4.3px) rotate(60deg);
+    }
+    86% {
+        transform: rotate(120deg);
+    }
+    100% {
+        transform: rotate(120deg);
+    }
+}

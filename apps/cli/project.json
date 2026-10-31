@@ -1,0 +1,60 @@
+{
+  "name": "cli",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/cli/src",
+  "projectType": "application",
+  "targets": {
+    "build": {
+      "executor": "@nx/esbuild:esbuild",
+      "outputs": [
+        "{options.outputPath}"
+      ],
+      "defaultConfiguration": "production",
+      "options": {
+        "platform": "node",
+        "outputPath": "dist/apps/cli",
+        "format": [
+          "cjs"
+        ],
+        "bundle": true,
+        "main": "apps/cli/src/main.ts",
+        "tsConfig": "apps/cli/tsconfig.app.json",
+        "assets": [
+          {
+            "input": "apps/cli",
+            "glob": "package.json",
+            "output": "."
+          }
+        ],
+        "generatePackageJson": false,
+        "esbuildOptions": {
+          "sourcemap": false,
+          "banner": {
+            "js": "#!/usr/bin/env node"
+          },
+          "outExtension": {
+            ".js": ".js"
+          }
+        },
+        "thirdParty": true
+      },
+      "configurations": {
+        "development": {},
+        "production": {}
+      }
+    },
+    "serve": {
+      "continuous": true,
+      "dependsOn": [
+        "^build"
+      ]
+    },
+    "install-global": {
+      "dependsOn": [
+        "build"
+      ],
+      "command": "npm install -g ./dist/apps/cli"
+    }
+  },
+  "tags": []
+}

@@ -1,0 +1,12 @@
+{
+  "name": "@tasks/cli",
+  "version": "2.0.0",
+  "private": true,
+  "description": "tasks: links project folders to the tasks server and keeps TODO.md in sync",
+  "bin": {
+    "tasks": "main.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

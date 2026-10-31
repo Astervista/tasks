@@ -1,0 +1,832 @@
+/*
+ * Additions on top of legacy.css (the original stylesheet, kept verbatim) and Materialize's CSS.
+ * Only new elements get new styles; existing ones keep their look.
+ */
+
+/* Component hosts must not break the original flex layout of body > bars/tasks */
+t-root,
+t-address-bar,
+t-task-list,
+t-status-bar,
+t-overlays {
+  display: contents;
+}
+
+/* Confetti fly past the edges: clip them instead of making the page scroll */
+#effects {
+  overflow: hidden;
+}
+
+/* Scrollbars: rounded, in a clown color picked at random per scrolling surface (--clown, see clown.ts) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--clown, deeppink) transparent;
+}
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--clown, deeppink);
+  border-radius: 10px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  border-width: 2px;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Materialize's modal, without its JavaScript: same geometry and open/close animation */
+.modal-overlay.open {
+  display: block;
+  z-index: 1002;
+  opacity: 0.5;
+}
+.modal.open {
+  display: block;
+  z-index: 1003;
+  top: 10%;
+  opacity: 1;
+  transform: scaleX(1) scaleY(1);
+}
+.modal-overlay.open.modal-in {
+  animation: overlay-in 250ms ease-out;
+}
+.modal-overlay.open.modal-out {
+  animation: overlay-out 250ms ease-out forwards;
+}
+.modal.open.modal-in {
+  animation: modal-in 250ms cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+.modal.open.modal-out {
+  animation: modal-out 250ms cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
+}
+@keyframes overlay-in {
+  from { opacity: 0; }
+}
+@keyframes overlay-out {
+  to { opacity: 0; }
+}
+@keyframes modal-in {
+  from { opacity: 0; top: 4%; transform: scaleX(0.8) scaleY(0.8); }
+}
+@keyframes modal-out {
+  to { opacity: 0; top: 4%; transform: scaleX(0.8) scaleY(0.8); }
+}
+.modal .modal-footer .button {
+  margin: 10px;
+  padding: 5px 20px;
+}
+.modal textarea.materialize-textarea {
+  overflow-y: auto;
+  min-height: 100px;
+  max-height: 40vh;
+}
+
+/* Native select (Materialize hides non browser-default selects) */
+select.browser-default.dark-select {
+  background: #333;
+  color: white;
+  border: none;
+  border-bottom: 1px solid #9e9e9e;
+  border-radius: 0;
+  padding-left: 0;
+}
+select.browser-default.dark-select:focus {
+  outline: none;
+  border-bottom: 1px solid goldenrod;
+  box-shadow: 0 1px 0 0 goldenrod;
+}
+.select-label {
+  color: #9e9e9e;
+  font-size: 0.8rem;
+}
+
+/* Project picker */
+#address-space.project-space {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.project-description {
+  color: #AAA;
+  margin: 0 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#address::placeholder {
+  color: #777;
+}
+
+#address-bar > .sub-folder.crumb {
+  cursor: pointer;
+}
+.suggestion-separator {
+  display: inline-block;
+  margin: 0 10px 0 15px;
+  color: #888;
+  user-select: none;
+}
+.subTodo.recent {
+  border-radius: 20px;
+}
+.picker-message {
+  display: inline-block;
+  margin: 5px 10px;
+  color: #ff3c63;
+}
+
+/* Tree rows */
+.task-line-name .tree-indent {
+  display: inline-block;
+  flex-shrink: 0;
+}
+.task-line-name .tree-bar {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 4px;
+  align-self: stretch;
+  border-radius: 2px;
+  margin-right: 10px;
+}
+.task-line-name .tree-toggle {
+  cursor: pointer;
+  user-select: none;
+  color: #AAA;
+  margin-right: 4px;
+  transition: transform 200ms;
+}
+.task-line-name .tree-toggle.collapsed {
+  transform: rotate(-90deg);
+}
+.task-line-name .tree-spacer {
+  display: inline-block;
+  width: 28px;
+  flex-shrink: 0;
+}
+.task-line-name .crumb-count {
+  margin-left: 8px;
+  color: #888;
+  font-size: 13px;
+}
+.task-line-details {
+  white-space: pre-wrap;
+}
+.task-line.drop-inside {
+  background: rgba(255, 215, 0, 0.12);
+  box-shadow: inset 0 0 0 2px gold;
+}
+.task-line.drop-before {
+  box-shadow: inset 0 3px 0 0 gold;
+}
+.task-line.drop-after {
+  box-shadow: inset 0 -3px 0 0 gold;
+}
+.task-group.dragging {
+  opacity: 0.4;
+}
+.shake {
+  animation: shake 400ms;
+}
+@keyframes shake {
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+
+.button-subtask {
+  background-color: darkorchid;
+  order: 4;
+}
+.button-subtask:before {
+  font-family: "Material Icons";
+  text-transform: none;
+  content: "subdirectory_arrow_right";
+  margin: 10px;
+}
+
+/* Status bar */
+.status-stats {
+  cursor: pointer;
+  color: gold;
+  margin-left: 5px;
+}
+.status-elsewhere {
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+
+/* Statistics dialog */
+.stats-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin: 20px 0;
+}
+.stats-tile {
+  flex: 1 1 140px;
+  background: #2A2A2A;
+  border-radius: 15px;
+  padding: 12px 16px;
+}
+.stats-tile .label {
+  color: #AAA;
+  font-size: 13px;
+}
+.stats-tile .value {
+  font-size: 22px;
+  font-weight: 500;
+}
+.stats-weight {
+  position: relative;
+  height: 30px;
+  margin: 10px 0 25px;
+}
+.stats-chart {
+  position: relative;
+}
+.stats-chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.stats-chart .axis {
+  fill: #AAA;
+  font-size: 11px;
+}
+.stats-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 10px;
+}
+.stats-legend .item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.stats-legend .item.static {
+  cursor: auto;
+}
+.stats-legend .swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+}
+.stats-tooltip {
+  position: absolute;
+  white-space: nowrap;
+  pointer-events: none;
+  background: #444;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  z-index: 1010;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+.stats-empty {
+  color: #AAA;
+  margin: 30px 0;
+  text-align: center;
+}
+
+.stats-tooltip.flip {
+  transform: translateX(-100%);
+}
+
+/* Project list (home page) */
+t-project-list,
+t-project-bar {
+  display: contents;
+}
+.project-page {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+#project-search {
+  background: #444;
+  display: flex;
+  align-items: center;
+}
+#project-search input {
+  flex-grow: 1;
+  margin: 10px;
+  padding: 5px;
+  border-bottom: none;
+  box-shadow: none;
+  height: auto;
+  color: white;
+}
+#project-search input::placeholder {
+  color: #777;
+}
+.project-new {
+  background-color: #8b65fd;
+  margin: 8px 16px;
+  padding: 5px 20px;
+}
+.project-new:before {
+  font-family: "Material Icons";
+  text-transform: none;
+  content: "add";
+  margin-right: 8px;
+  vertical-align: middle;
+}
+.project-rows {
+  display: flex;
+  flex-direction: column;
+}
+.task-line.project-line {
+  cursor: pointer;
+}
+.task-line.header.project-line {
+  cursor: auto;
+}
+.task-line.project-line.selected-row {
+  background: #333;
+}
+.project-line > span {
+  margin: 0 10px;
+}
+.project-line .project-name {
+  flex: 4 1 0;
+  flex-wrap: wrap;
+  margin-left: 15px;
+  min-width: 0;
+}
+.project-line .project-name .sub-folder {
+  margin-left: 0;
+}
+.project-description-line {
+  color: #AAA;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.project-running {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  font-style: italic;
+  color: #DDD;
+}
+.project-line .project-status {
+  flex: 2 1 0;
+  gap: 2px;
+}
+.project-line .project-status .material-icons {
+  margin-left: 8px;
+  font-size: 20px;
+}
+.project-line .project-status .material-icons:first-child {
+  margin-left: 0;
+}
+.project-line .project-time {
+  flex: 1.5 1 0;
+}
+.project-line .project-progress {
+  flex: 1.2 1 0;
+  min-height: 30px;
+}
+.project-line .project-eta {
+  flex: 1.2 1 0;
+}
+
+/* Bar above an open project */
+#address-bar.project-bar {
+  flex-wrap: nowrap;
+  min-height: 48px;
+}
+.project-back {
+  color: orangered;
+  margin: 0 4px 0 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.project-bar .project-description {
+  flex-grow: 1;
+}
+.project-bar-eta {
+  color: gold;
+  margin: 0 16px;
+  white-space: nowrap;
+}
+
+/* ETA and check-ins */
+.task-eta {
+  color: gold;
+  margin-bottom: 8px;
+}
+.button-checkin {
+  background-color: #d9760a;
+  order: 3;
+}
+.button-checkin:before {
+  font-family: "Material Icons";
+  text-transform: none;
+  content: "flag";
+  margin: 10px;
+}
+.checkin-steps {
+  margin: 10px 0;
+}
+.stats-section {
+  margin: 30px 0 0;
+  font-size: 20px;
+}
+
+/* The implicit leaf of a macrotask: its own work, shown among the subtasks but not selectable */
+.task-line.implicit-leaf {
+  padding: 10px 0;
+  cursor: default;
+  color: #bbb;
+}
+
+.task-line.implicit-leaf:hover {
+  background: none;
+}
+
+
+/* Rows show weight, time and status; the dates moved to the details panel */
+.implicit-leaf .implicit-sign {
+  color: #777;
+  font-size: 20px;
+}
+
+.task-line-counter {
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: center;
+  gap: 4px;
+}
+
+.task-progress {
+  display: block;
+  width: 100%;
+  max-width: 160px;
+  height: 4px;
+  border-radius: 2px;
+  background: #444;
+  overflow: hidden;
+}
+
+.task-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+}
+
+.task-line-status {
+  padding-left: 13px;
+}
+
+.task-line-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  white-space: normal;
+}
+
+.task-line-details .task-eta {
+  margin-bottom: 0;
+}
+
+.task-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  color: #ccc;
+}
+
+.task-dates-label {
+  color: #888;
+}
+
+.task-desc {
+  white-space: pre-wrap;
+}
+
+/* Button order: timer, check in, done/reopen, add subtask, edit, reset, delete */
+.task-line-buttons .button-play,
+.task-line-buttons .button-pause { order: 1; }
+.task-line-buttons .button-checkin { order: 2; }
+.task-line-buttons .button-done,
+.task-line-buttons .button-restart { order: 3; }
+.task-line-buttons .button-subtask { order: 4; }
+.task-line-buttons .button-edit { order: 5; }
+.task-line-buttons .button-reset { order: 6; }
+.task-line-buttons .button-delete { order: 7; }
+
+/* Timeline view: the same rows, with a lane on one stretched, scrollable axis instead of the columns */
+.timeline-head {
+  position: relative;
+  flex: 7 1 0;
+  min-width: 0;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  margin-right: 16px;
+}
+
+.timeline-ranges {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.timeline-ticks {
+  position: relative;
+  height: 20px;
+  margin-top: 6px;
+  overflow: hidden;
+  color: #aaa;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.timeline-tick {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.timeline-scroller {
+  display: block !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 12px;
+  margin-top: 4px;
+}
+
+.timeline-scroller > span {
+  display: block;
+  height: 1px;
+}
+
+.task-line > t-timeline-lane {
+  flex: 7 1 0;
+  min-width: 0;
+  margin-right: 16px;
+}
+
+.timeline-lane {
+  position: relative;
+  display: block;
+  align-self: stretch;
+}
+
+.lane-clip {
+  position: absolute;
+  inset: -18px 0;
+  overflow: hidden;
+}
+
+.lane-inner {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: block;
+}
+
+.timeline-ticks .lane-inner {
+  top: 0;
+  bottom: 0;
+}
+
+.timeline-grid {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #3c3c3c;
+}
+
+.lane-line {
+  position: absolute;
+  top: calc(50% - 1px);
+  height: 2px;
+}
+
+.lane-paused {
+  background: #b388ff;
+}
+
+.lane-new {
+  border-top: 2px dotted #ff4fb8;
+}
+
+/*
+ * Beads: events and pieces of work, each one SVG path (no seams). The line swells into a chain
+ * (a snake that ate an elephant); touching beads dip like pill against pill.
+ */
+.bead {
+  position: absolute;
+  top: calc(50% - 8px);
+  height: 16px;
+  z-index: 1;
+}
+
+.bead-shape {
+  display: block;
+  overflow: visible;
+}
+
+.bead-icon {
+  position: absolute;
+  top: 0;
+  height: 16px;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px !important;
+  color: #2a2a2a;
+  pointer-events: none;
+}
+
+/* Check-ins: little flags standing behind the beads */
+.checkin-flag {
+  position: absolute;
+  bottom: 50%;
+  margin-left: -0.5px;
+  z-index: 0;
+  overflow: visible;
+}
+
+.checkin-flag rect {
+  fill: rgba(255, 255, 255, 0.35);
+}
+
+.legend-lane .checkin-flag {
+  bottom: 3px;
+}
+
+.checkin-flag path {
+  fill: #ff1744;
+}
+
+/* Zoom: an endless rolling dial */
+.zoom-dial {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: ew-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.zoom-dial-wheel {
+  display: block;
+  width: 120px;
+  height: 22px;
+  border-radius: 11px;
+  background-color: #3a3a3a;
+  background-image:
+    linear-gradient(to right, rgba(42, 42, 42, 0.95), transparent 22%, transparent 78%, rgba(42, 42, 42, 0.95)),
+    repeating-linear-gradient(to right, var(--clown, #8b65fd) 0 2px, transparent 2px 10px);
+  background-size: 100% 100%, 10px 100%;
+  background-repeat: no-repeat, repeat-x;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.zoom-dial-value {
+  min-width: 3.2em;
+  font-variant-numeric: tabular-nums;
+  color: #ddd;
+}
+
+.timeline-legend {
+  padding: 12px 15px;
+}
+
+.legend-lane {
+  width: 56px;
+  height: 20px;
+}
+
+.legend-lane .lane-clip {
+  inset: 0;
+  overflow: visible;
+}
+
+/* Macrotasks: a tinted block (the macrotask + its implicit leaf) under one bar, bold title */
+t-task-row.task-group {
+  display: block;
+  position: relative;
+}
+
+.task-block {
+  position: relative;
+}
+
+.task-block.macro {
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.task-block.macro > .task-line:not(.implicit-leaf) .task-title {
+  font-weight: 700;
+}
+
+.block-bar {
+  position: absolute;
+  top: 16px;
+  bottom: 12px;
+  width: 4px;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.task-block.macro + .task-line-details,
+.task-group + .task-group .task-block.macro {
+  border-top: 1px solid #3a3a3a;
+}
+
+/* Selection: outlined, and its bar runs down next to its subtasks */
+t-task-row.task-group.selected::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid #8b65fd;
+  border-radius: 8px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.tree-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Table / timeline switch in the project bar */
+.view-switch {
+  display: flex;
+  gap: 4px;
+  margin-right: 12px;
+}
+
+.view-switch .material-icons {
+  cursor: pointer;
+  color: #888;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.view-switch .material-icons.active {
+  color: #fff;
+  background: #8b65fd;
+}
+
+/* Status bar: no wrapping or jumping while the timers tick */
+#status-left-ext,
+#status-left-int,
+#status-right-int,
+#status-right-ext {
+  flex-wrap: nowrap !important;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+#status-right-int {
+  justify-content: flex-end;
+}
+
+.status-current {
+  display: flex;
+  min-width: 0;
+  margin-left: 5px;
+  font-style: italic;
+}
+
+.status-path {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #aaa;
+}
+
+.status-name {
+  flex: 0 0.01 auto;
+  min-width: 3em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.status-bar-timer-a,
+.status-bar-timer-b,
+.status-bar-timer-c {
+  font-variant-numeric: tabular-nums;
+}
