@@ -830,3 +830,20 @@ t-task-row.task-group.selected::after {
 .status-bar-timer-c {
   font-variant-numeric: tabular-nums;
 }
+
+/* Only the rows scroll: the bars, the column header and the legend stay put */
+body {
+  overflow: hidden;
+}
+
+#tasks,
+.project-rows {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.project-page {
+  min-height: 0;
+}

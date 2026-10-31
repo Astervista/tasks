@@ -80,7 +80,10 @@ npm ci && npm run cli:install                                 # installs the `ta
 tasks remote set https://tasks.example.com --token <token>   # once per machine
 cd ~/projects/something && tasks init                        # asks name + description, links the folder (re-running is a no-op)
 tasks daemon install                                         # keeps every linked project in sync, at login
+tasks completion install                                     # Tab completion for zsh, bash or fish ($SHELL)
 ```
+
+`tasks completion install` saves the script next to the CLI's config and adds one `source` line to `~/.zshrc` or `~/.bashrc` (fish loads it from `~/.config/fish/completions` by itself). Run it again after updating the CLI. `tasks clone <Tab>` offers the projects on the server by name.
 
 | Command | What it does |
 |---|---|

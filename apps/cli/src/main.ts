@@ -2,6 +2,7 @@ import { parseArgs } from 'node:util';
 import { clone, forget, init, list, remoteSet, remoteShow, status, sync } from './commands';
 import { runDaemon } from './daemon';
 import { show } from './tui';
+import { completionScript, installCompletion, printUids } from './completion';
 import { installService, uninstallService } from './service';
 
 const HELP = `tasks: keeps the TODO.md of your projects in sync with the tasks server
@@ -24,6 +25,10 @@ Projects:
 Daemon:
   tasks daemon                             sync continuously (foreground)
   tasks daemon install | uninstall         start it automatically at login
+
+Shell completion:
+  tasks completion install                 set it up for your shell (zsh, bash or fish)
+  tasks completion bash | zsh | fish       print the script
 `;
 
 async function main(argv: string[]): Promise<void> {
@@ -65,6 +70,12 @@ async function main(argv: string[]): Promise<void> {
       return list(values.remote ?? false);
     case 'forget':
       return forget(rest[0]);
+    case 'completion':
+      if (rest[0] === 'install') return installCompletion();
+      if (rest[0] != null) return void process.stdout.write(completionScript(rest[0]));
+      break;
+    case '__uids':
+      return printUids();
     case 'daemon':
       if (rest[0] === 'install') return installService();
       if (rest[0] === 'uninstall') return uninstallService();

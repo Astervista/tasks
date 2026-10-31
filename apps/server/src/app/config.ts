@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 /**
  * token: every request needs the token.
@@ -30,6 +30,7 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): AppConfig {
     dataDir: env['DATA_DIR'] ?? '/data',
     token,
     auth,
-    webDir: env['WEB_DIR'] ?? join(__dirname, '..', 'web', 'browser'),
+    // Absolute: the SPA fallback (sendFile) refuses relative paths
+    webDir: resolve(env['WEB_DIR'] ?? join(__dirname, '..', 'web', 'browser')),
   };
 }

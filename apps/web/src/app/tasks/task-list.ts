@@ -21,6 +21,7 @@ import { ClockService } from '../services/clock.service';
 import { TodoActions } from '../services/todo-actions.service';
 import { WorkspaceStore } from '../services/workspace.store';
 import { ViewService } from '../services/view.service';
+import { Clown } from '../ui/clown';
 import { ZoomDial } from '../ui/zoom-dial';
 import { LEVEL_COLORS, TaskRow } from './task-row';
 import { TimelineAxis, TimelineLane } from './timeline-lane';
@@ -58,7 +59,7 @@ type DropZone = 'before' | 'inside' | 'after';
 @Component({
   selector: 't-task-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [TaskRow, TimelineLane, ZoomDial],
+  imports: [TaskRow, TimelineLane, ZoomDial, Clown],
   template: `
     <div id="header" class="task-line header">
       @for (item of view.mode() === 'timeline' ? columns.slice(0, 1) : columns; track item.column) {
@@ -93,7 +94,7 @@ type DropZone = 'before' | 'inside' | 'after';
         </pattern>
       </defs>
     </svg>
-    <div id="tasks" (wheel)="wheel($event)">
+    <div id="tasks" tClown (wheel)="wheel($event)">
       @for (row of rows(); track row.todo.id) {
         <t-task-row [row]="row" [maxWeight]="maxWeight()" [axis]="axis()" [lane]="lanes()?.get(row.todo.id + '') ?? null"
                     [ownLane]="lanes()?.get(row.todo.id + ':own') ?? null"

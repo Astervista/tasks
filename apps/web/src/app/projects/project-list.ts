@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, output, signal, viewChild, afterNextRender } from '@angular/core';
 import { dayKeyToLabel, formatMinutes, paceNote, WorkspaceSummary } from '@tasks/core';
 import { ClockService } from '../services/clock.service';
+import { Clown } from '../ui/clown';
 import { WorkspaceStore } from '../services/workspace.store';
 
 /**
@@ -10,6 +11,7 @@ import { WorkspaceStore } from '../services/workspace.store';
 @Component({
   selector: 't-project-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [Clown],
   host: { class: 'project-page' },
   template: `
     <div id="project-search">
@@ -25,7 +27,7 @@ import { WorkspaceStore } from '../services/workspace.store';
       <span class="project-progress">Done</span>
       <span class="project-eta">ETA</span>
     </div>
-    <div class="project-rows">
+    <div class="project-rows" tClown>
       @for (project of projects(); track project.uid; let i = $index) {
         <div class="task-line project-line" [class.selected-row]="i === selected()" (click)="open.emit(project.uid)"
              (mouseenter)="selected.set(i)">

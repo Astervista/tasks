@@ -46,8 +46,8 @@ import { WorkspaceStore } from '../services/workspace.store';
           <span style="margin-left: 5px; color: #AAA">No todo is currently running</span>
         </span>
         <span id="status-right-ext">
-          <span style="margin-left: 5px; color: #AAA">Total running time:</span>
-          <span style="margin-left: 5px" class="status-bar-timer-c">{{ totalTime() }}</span>
+          <span class="material-icons" style="color: #AAA" title="All the time logged in this project">timer</span>
+          <span style="margin-left: 5px" class="status-bar-timer-c" title="All the time logged in this project">{{ totalTime() }}</span>
         </span>
       }
     </div>
