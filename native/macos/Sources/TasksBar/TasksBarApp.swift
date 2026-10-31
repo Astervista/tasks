@@ -243,6 +243,7 @@ struct SwitchMenu: View {
 
 struct MenuContent: View {
     @ObservedObject var model: TasksModel
+    @ObservedObject var loginItem: LoginItem
 
     /// Workspaces, most recently worked first
     private var workspaces: [(uid: String, name: String)] {
@@ -295,6 +296,10 @@ struct MenuContent: View {
             if let url = model.api?.webUrl { NSWorkspace.shared.open(url) }
         }
         Button("Refresh") { Task { await model.refresh() } }
+        Toggle("Open at Login", isOn: Binding(get: { loginItem.enabled }, set: { loginItem.set($0) }))
+        if let problem = loginItem.problem {
+            Text(problem)
+        }
         Button("Quit") { NSApp.terminate(nil) }.keyboardShortcut("q")
     }
 }
@@ -302,6 +307,7 @@ struct MenuContent: View {
 @main
 struct TasksBarApp: App {
     @StateObject private var model = TasksModel()
+    @StateObject private var loginItem = LoginItem()
 
     init() {
         // Menu-bar only: no Dock icon, no main window
@@ -310,7 +316,8 @@ struct TasksBarApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuContent(model: model)
+            MenuContent(model: model, loginItem: loginItem)
+                .onAppear { loginItem.refresh() }
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: model.running ? "play.circle.fill" : (model.connected ? "checklist" : "exclamationmark.triangle"))

@@ -55,6 +55,7 @@ internal sealed class TrayContext : ApplicationContext
         checkInTimer.Tick += (_, _) => CheckInTick();
         checkInTimer.Start();
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
+        LoginItem.OfferOnce();
         UpdateIcon();
         _ = Run();
     }
@@ -320,6 +321,7 @@ internal sealed class TrayContext : ApplicationContext
             if (api != null) Process.Start(new ProcessStartInfo(api.WebUrl.ToString()) { UseShellExecute = true });
         });
         menu.Items.Add("Refresh", null, (_, _) => _ = Refresh());
+        menu.Items.Add(new ToolStripMenuItem("Start with Windows", null, (_, _) => LoginItem.Set(!LoginItem.Enabled)) { Checked = LoginItem.Enabled });
         menu.Items.Add("Quit", null, (_, _) => Quit());
     }
 

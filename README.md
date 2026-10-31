@@ -100,8 +100,8 @@ tasks daemon install                                         # keeps every linke
 
 Both read the remote and token from the CLI's config, so there's nothing to set up.
 
-- **macOS**: run `native/macos/bundle.sh`, copy `native/macos/build/TasksBar.app` to /Applications, and add it to Login Items.
-- **Windows**: run `dotnet publish native/windows/TasksTray -c Release -r win-x64`, or take `TasksTray.exe` from the CI artifacts.
+- **macOS**: run `native/macos/bundle.sh` and copy `native/macos/build/TasksBar.app` to /Applications. The first launch adds it to Login Items; "Open at Login" in its menu turns that off and on.
+- **Windows**: run `dotnet publish native/windows/TasksTray -c Release -r win-x64`, or take `TasksTray.exe` from the CI artifacts. The first launch makes it start with Windows; "Start with Windows" in its menu turns that off and on.
 
 What they show:
 - The current task and its timer.
