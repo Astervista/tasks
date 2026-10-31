@@ -14,7 +14,7 @@ import { WorkspaceStore } from '../services/workspace.store';
       <span id="status-left-ext">
         <span class="material-icons status-stats" title="Statistics" (click)="dialogs.stats.set(true)">bar_chart</span>
         <span style="margin-left: 5px">{{ total() }}</span>
-        <span style="margin-left: 5px; color: #AAA">total todos</span>
+        <span class="status-optional" style="margin-left: 5px; color: #AAA">total todos</span>
       </span>
       <span id="status-left-int">
         @for (chip of chips(); track chip.icon) {
@@ -24,7 +24,7 @@ import { WorkspaceStore } from '../services/workspace.store';
           </span>
         }
       </span>
-      <span id="status-add" style="background-color: #8b65fd" class="button" (click)="actions.add()">Add TODO</span>
+      <span id="status-add" style="background-color: #8b65fd" class="button" title="Add TODO" (click)="actions.add()"><span class="status-add-label">Add TODO</span></span>
       @if (running(); as current) {
         <span id="status-right-int">
           <span class="material-icons lime-text" title="Running now">play_arrow</span>

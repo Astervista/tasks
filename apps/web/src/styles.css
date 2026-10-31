@@ -847,3 +847,207 @@ body {
 .project-page {
   min-height: 0;
 }
+
+/* ---------------------------------------------------------------------------------------------
+ * Ultra-wide screens: the table keeps a readable width, centred (columns that drift a metre apart
+ * are hard to follow); the timeline keeps all the room, more width is more time.
+ * ------------------------------------------------------------------------------------------- */
+#tasks {
+  scrollbar-gutter: stable both-edges;
+}
+
+@media (min-width: 1800px) {
+  #header:not(.timeline-mode),
+  #tasks:not(.timeline-mode) > t-task-row,
+  #status-bar,
+  .task-line.header.project-line,
+  .project-rows > .project-line {
+    width: 100%;
+    max-width: 1680px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  /* The bars keep their full-width background; their content lines up with the table */
+  #address-bar.project-bar,
+  #project-search {
+    padding-left: calc((100% - 1680px) / 2);
+    padding-right: calc((100% - 1680px) / 2);
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * Phones: compact columns (the title gets the room), tighter tree, a status bar with the
+ * essentials, wrapping buttons, dialogs almost full width. The tree indent itself is in
+ * task-row.ts (ViewportService), with the same breakpoint.
+ * ------------------------------------------------------------------------------------------- */
+@media (max-width: 700px) {
+  .task-line {
+    padding: 12px 0;
+  }
+  .task-line-name {
+    margin: 0 6px 0 10px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .task-line-name .tree-bar {
+    margin-right: 6px;
+  }
+  .task-line-name .tree-toggle {
+    margin-right: 0;
+  }
+  .task-line-name .tree-spacer {
+    width: 24px;
+  }
+  .task-line-weight {
+    flex: 0 0 52px;
+    margin: 0 6px;
+  }
+  /* Short bars still hold their number */
+  .task-line-weight-progress {
+    min-width: 24px;
+  }
+  .task-line-counter {
+    flex: 0 0 64px;
+    margin: 0 6px;
+    font-size: 13px;
+  }
+  .task-line-status {
+    flex: 0 0 28px;
+    width: 28px;
+    margin: 0 8px 0 0;
+    padding-left: 0;
+  }
+  .task-line.header > span {
+    font-size: 12px;
+  }
+  /* "Status" does not fit its column: an icon says it */
+  #header .task-line-status {
+    font-size: 0;
+  }
+  #header .task-line-status::before {
+    content: 'flag';
+    font-family: 'Material Icons';
+    font-size: 18px;
+  }
+
+  .task-line-buttons {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-right: 10px;
+  }
+  .task-line-buttons > .button {
+    margin: 0;
+    flex: 1 1 calc(50% - 8px);
+    font-size: 13px;
+  }
+
+  /* Top bar: the project and its ETA; the description is in the edit dialog */
+  .project-bar .project-description {
+    display: none;
+  }
+  .project-bar .crumb {
+    flex: 0 0 auto;
+    max-width: 50vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .project-bar-eta {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
+    font-size: 12px;
+  }
+
+  /* Status bar: total, a round add button, the running task and its timer */
+  #status-left-int,
+  #status-bar .status-optional,
+  .status-bar-timer-b {
+    display: none !important;
+  }
+  #status-left-ext,
+  #status-right-ext {
+    flex: 0 0 auto;
+    margin: 8px;
+  }
+  #status-add {
+    flex: 0 0 44px;
+    width: 44px;
+    min-width: 0;
+    max-width: 44px;
+    height: 44px;
+    margin: 8px;
+    padding: 0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #status-add::before {
+    margin: 0;
+  }
+  #status-add .status-add-label {
+    display: none;
+  }
+  #status-right-int {
+    flex: 1 1 0;
+    min-width: 0;
+    margin: 8px;
+  }
+  #status-right-int > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Dialogs */
+  .modal {
+    width: 94% !important;
+    max-height: 88% !important;
+    top: 4% !important;
+  }
+  .modal .modal-content {
+    padding: 16px;
+  }
+  .stats-tile {
+    flex-basis: 110px;
+  }
+
+  /* Home page: project, done, ETA */
+  .project-line .project-status,
+  .project-line .project-time {
+    display: none;
+  }
+  .project-new {
+    font-size: 0;
+    padding: 5px 12px;
+  }
+  .project-new::before {
+    font-size: 20px;
+    margin: 0;
+  }
+
+  /* Timeline: more room for the lanes */
+  .task-line > t-timeline-lane,
+  .timeline-head {
+    flex: 3 1 0;
+    margin-right: 8px;
+  }
+  .zoom-dial-wheel {
+    width: 72px;
+  }
+  /* One line that scrolls sideways, instead of five */
+  .timeline-legend {
+    padding: 8px 10px;
+    font-size: 12px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .timeline-legend .item {
+    flex: 0 0 auto;
+  }
+}

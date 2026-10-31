@@ -61,7 +61,7 @@ type DropZone = 'before' | 'inside' | 'after';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [TaskRow, TimelineLane, ZoomDial, Clown],
   template: `
-    <div id="header" class="task-line header">
+    <div id="header" class="task-line header" [class.timeline-mode]="view.mode() === 'timeline'">
       @for (item of view.mode() === 'timeline' ? columns.slice(0, 1) : columns; track item.column) {
         <span [class]="'task-line-' + item.column" [class.sort-asc]="sort().column === item.column && sort().direction === 1"
               [class.sort-desc]="sort().column === item.column && sort().direction === -1"
@@ -94,7 +94,7 @@ type DropZone = 'before' | 'inside' | 'after';
         </pattern>
       </defs>
     </svg>
-    <div id="tasks" tClown (wheel)="wheel($event)">
+    <div id="tasks" tClown [class.timeline-mode]="view.mode() === 'timeline'" (wheel)="wheel($event)">
       @for (row of rows(); track row.todo.id) {
         <t-task-row [row]="row" [maxWeight]="maxWeight()" [axis]="axis()" [lane]="lanes()?.get(row.todo.id + '') ?? null"
                     [ownLane]="lanes()?.get(row.todo.id + ':own') ?? null"

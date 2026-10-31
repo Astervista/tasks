@@ -2,6 +2,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { descendantsOf, formatMinutes, formatMoment, MAX_DEPTH, openSession, Status, statusOf, TodoEta, TreeEta } from '@tasks/core';
 import { ClockService } from '../services/clock.service';
+import { ViewportService } from '../services/viewport.service';
 import { TodoActions } from '../services/todo-actions.service';
 import { WorkspaceStore } from '../services/workspace.store';
 import type { RowModel } from './task-list';
@@ -32,7 +33,7 @@ export const LEVEL_COLORS = ['#ff2222', 'orangered', 'orange', 'teal', 'royalblu
            (dragstart)="startDrag($event)" (dragend)="dragEnd.emit()"
            (dragover)="dragOver.emit($event)" (drop)="dropped.emit($event)">
         <span class="task-line-name">
-          <span class="tree-indent" [style.width.px]="(row().depth - 1) * 22"></span>
+          <span class="tree-indent" [style.width.px]="indent(row().depth)"></span>
           <span class="tree-bar" [style.background]="row().hasChildren && !row().collapsed ? 'transparent' : color()"></span>
           @if (row().hasChildren) {
             <span class="material-icons tree-toggle" [class.collapsed]="row().collapsed"
@@ -53,7 +54,7 @@ export const LEVEL_COLORS = ['#ff2222', 'orangered', 'orange', 'teal', 'royalblu
         <!-- The implicit leaf: the work on the macrotask itself, with the macrotask's own data -->
         <div class="task-line implicit-leaf" title="The macrotask itself: its own weight, time and estimate">
           <span class="task-line-name">
-            <span class="tree-indent" [style.width.px]="(row().depth - 1) * 22"></span>
+            <span class="tree-indent" [style.width.px]="indent(row().depth)"></span>
             <span class="tree-bar" style="background: transparent"></span>
             <span class="tree-spacer"></span>
             <span class="material-icons implicit-sign">more_horiz</span>
@@ -129,6 +130,7 @@ export class TaskRow {
   protected readonly actions = inject(TodoActions);
   private readonly store = inject(WorkspaceStore);
   private readonly clock = inject(ClockService);
+  private readonly viewport = inject(ViewportService);
 
   readonly row = input.required<RowModel>();
   /** ETA of this todo (`own` is the implicit leaf's for macrotasks) */
@@ -159,8 +161,13 @@ export class TaskRow {
   protected readonly guide = computed(() =>
     this.row().guide ?? (this.expanded() ? { depth: this.row().depth, color: this.color() } : null));
 
+  /** Indent of a depth's bar from the row's edge; tighter on phones (see styles.css, .task-line-name) */
+  protected indent(depth: number): number {
+    return (depth - 1) * (this.viewport.compact() ? 12 : 22);
+  }
+
   protected barLeft(depth: number): number {
-    return 15 + (depth - 1) * 22;
+    return (this.viewport.compact() ? 10 : 15) + this.indent(depth);
   }
 
   /**
