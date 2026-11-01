@@ -35,6 +35,8 @@ internal sealed class TrayContext : ApplicationContext
     private DateTimeOffset fetchedAt = DateTimeOffset.Now;
     private bool connected;
     private string? problem;
+    private bool needsLogin;
+    private LoginForm? loginForm;
     private Config? config;
     private readonly System.Windows.Forms.Timer checkInTimer = new() { Interval = 30_000 };
     private CheckInForm? checkInForm;
@@ -190,15 +192,16 @@ internal sealed class TrayContext : ApplicationContext
         while (!stop.IsCancellationRequested)
         {
             var config = Config.Load();
-            if (config?.Remote == null || config.Token == null)
+            if (config?.Remote == null)
             {
-                problem = "Run \"tasks remote set <url> --token <token>\" first";
+                problem = "Run \"tasks remote set <url>\" first";
                 Post(UpdateIcon);
                 await Task.Delay(TimeSpan.FromSeconds(10));
                 continue;
             }
             this.config = config;
             api = new Api(config);
+            var token = Session.Load()?.Token;
             await Refresh();
             try
             {
@@ -208,10 +211,18 @@ internal sealed class TrayContext : ApplicationContext
             }
             catch (Exception error) when (!stop.IsCancellationRequested)
             {
-                problem = error.Message;
+                Report(error);
             }
             connected = false;
             Post(UpdateIcon);
+            if (needsLogin)
+            {
+                // Nothing to retry until someone logs in, from here or from the CLI
+                while (!stop.IsCancellationRequested && Session.Load()?.Token == token)
+                    await Task.Delay(TimeSpan.FromSeconds(2));
+                delay = TimeSpan.FromSeconds(1);
+                continue;
+            }
             await Task.Delay(delay);
             delay = TimeSpan.FromSeconds(Math.Min(delay.TotalSeconds * 2, 60));
         }
@@ -230,13 +241,33 @@ internal sealed class TrayContext : ApplicationContext
                 openTodos = nextOpen;
                 fetchedAt = DateTimeOffset.Now;
                 problem = null;
+                needsLogin = false;
                 UpdateIcon();
             });
         }
         catch (Exception error)
         {
-            Post(() => { problem = error.Message; UpdateIcon(); });
+            Post(() => { Report(error); UpdateIcon(); });
         }
+    }
+
+    private void Report(Exception error)
+    {
+        problem = error.Message;
+        needsLogin = error is ApiException { Error.IsNotLoggedIn: true };
+    }
+
+    private void LogIn()
+    {
+        if (api == null) return;
+        if (loginForm != null)
+        {
+            loginForm.Activate();
+            return;
+        }
+        loginForm = new LoginForm(api);
+        loginForm.FormClosed += (_, _) => loginForm = null;
+        loginForm.Show();
     }
 
     private void Post(Action action) => ui.Post(_ => action(), null);
@@ -315,6 +346,7 @@ internal sealed class TrayContext : ApplicationContext
         menu.Items.Add(new ToolStripMenuItem($"Today: {Format((current?.TodayMinutes ?? 0) + Elapsed)}") { Enabled = false });
         if (problem != null || !connected)
             menu.Items.Add(new ToolStripMenuItem($"⚠ {problem ?? "Offline"}") { Enabled = false });
+        if (needsLogin) menu.Items.Add("Log in…", null, (_, _) => LogIn());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Open web app", null, (_, _) =>
         {

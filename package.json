@@ -5,7 +5,7 @@
   "scripts": {
     "test": "nx run-many -t test -p core server",
     "build": "nx run-many -t build -p server web cli --configuration=production",
-    "dev:server": "DATA_DIR=./tmp/data PORT=8099 TASKS_TOKEN=${TASKS_TOKEN:-dev-token-change-me-0123} WEB_DIR=none nx serve server",
+    "dev:server": "DATA_DIR=./tmp/data PORT=8099 WEB_DIR=none nx serve server",
     "dev:web": "nx serve web",
     "deploy": "sh scripts/deploy.sh",
     "cli:install": "nx build cli && npm pack ./dist/apps/cli --pack-destination ./dist && npm install -g ./dist/tasks-cli-2.0.0.tgz"

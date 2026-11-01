@@ -1,6 +1,7 @@
 import { parseArgs } from 'node:util';
 import { clone, forget, init, list, remoteSet, remoteShow, status, sync } from './commands';
 import { runDaemon } from './daemon';
+import { login, logout } from './login';
 import { show } from './tui';
 import { completionScript, installCompletion, printUids } from './completion';
 import { installService, uninstallService } from './service';
@@ -8,8 +9,10 @@ import { installService, uninstallService } from './service';
 const HELP = `tasks: keeps the TODO.md of your projects in sync with the tasks server
 
 Setup (once per machine):
-  tasks remote set <url> --token <token>   connect to the server
+  tasks remote set <url>                   connect to the server, and log in if it asks for it
   tasks remote                             show the configured server
+  tasks login                              log in, approving from a browser on any device
+  tasks logout                             end this machine's session (tray apps included)
 
 Projects:
   tasks init [dir] [--name <n>] [--description <d>] [--new]
@@ -36,7 +39,6 @@ async function main(argv: string[]): Promise<void> {
     args: argv,
     allowPositionals: true,
     options: {
-      token: { type: 'string' },
       name: { type: 'string' },
       description: { type: 'string' },
       history: { type: 'boolean' },
@@ -52,9 +54,13 @@ async function main(argv: string[]): Promise<void> {
   }
   switch (command) {
     case 'remote':
-      if (rest[0] === 'set' && rest[1] != null) return remoteSet(rest[1], values.token);
+      if (rest[0] === 'set' && rest[1] != null) return remoteSet(rest[1]);
       if (rest.length === 0) return remoteShow();
       break;
+    case 'login':
+      return login();
+    case 'logout':
+      return logout();
     case 'init':
       return init(rest[0], { name: values.name, description: values.description, createNew: values.new ?? false });
     case 'clone':

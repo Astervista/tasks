@@ -1,8 +1,7 @@
 import { DynamicModule, Module } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER } from '@nestjs/core';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { existsSync } from 'node:fs';
-import { AuthGuard } from './auth.guard';
 import { APP_CONFIG, AppConfig } from './config';
 import { CoreErrorFilter } from './core-error.filter';
 import { EventsController } from './events/events.controller';
@@ -23,7 +22,6 @@ export class AppModule {
       controllers: [WorkspacesController, EventsController],
       providers: [
         { provide: APP_CONFIG, useValue: config },
-        { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: CoreErrorFilter },
         WorkspaceRepository,
         WorkspacesService,

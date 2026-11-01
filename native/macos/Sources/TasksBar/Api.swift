@@ -1,9 +1,8 @@
 import Foundation
 
-/// Remote + token written by `tasks remote set` (~/.config/tasks/config.json)
+/// Remote written by `tasks remote set` (~/.config/tasks/config.json)
 struct Config: Decodable {
     let remote: String?
-    let token: String?
     /// Pause the running task when the computer sleeps (default true)
     let pauseOnSleep: Bool?
     /// Ask "how far along?" after this many minutes of running (default 45, 0 = never)
@@ -11,17 +10,47 @@ struct Config: Decodable {
     /// Pause as of the question when nobody answers within this many minutes (default 10)
     let checkInGraceMinutes: Double?
 
-    static let url: URL = {
+    static let directory: URL = {
         if let dir = ProcessInfo.processInfo.environment["TASKS_CONFIG_DIR"] {
-            return URL(fileURLWithPath: dir).appendingPathComponent("config.json")
+            return URL(fileURLWithPath: dir)
         }
-        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/tasks/config.json")
+        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/tasks")
     }()
+
+    static let url = directory.appendingPathComponent("config.json")
 
     static func load() -> Config? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         return try? JSONDecoder().decode(Config.self, from: data)
     }
+}
+
+/// The login session of this machine, shared with the CLI and the daemon: logging in from one logs in
+/// them all. The token is a secret, so only this user can read the file.
+struct Session: Codable {
+    let cookieName: String
+    let token: String
+    let expiresAt: String
+
+    static let url = Config.directory.appendingPathComponent("session.json")
+
+    static func load() -> Session? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode(Session.self, from: data)
+    }
+
+    func save() throws {
+        try FileManager.default.createDirectory(at: Config.directory, withIntermediateDirectories: true)
+        let temp = Session.url.appendingPathExtension("tmp")
+        try? FileManager.default.removeItem(at: temp)
+        let saved = FileManager.default.createFile(
+            atPath: temp.path, contents: try JSONEncoder().encode(self), attributes: [.posixPermissions: 0o600])
+        guard saved, rename(temp.path, Session.url.path) == 0 else {
+            throw ApiError(statusCode: 0, message: "Could not save the session", code: nil)
+        }
+    }
+
+    var cookie: String { "\(cookieName)=\(token)" }
 }
 
 /// A logged session ({start, end}) or a day total ({day, minutes}); only sessions matter here
@@ -88,17 +117,37 @@ struct ApiError: Error, Decodable {
     let statusCode: Int
     let message: String
     let code: String?
+
+    static let notLoggedIn = ApiError(statusCode: 401, message: "Not logged in", code: nil)
+    var isNotLoggedIn: Bool { statusCode == ApiError.notLoggedIn.statusCode }
 }
+
+/// The login service answers a redirect to anyone it doesn't let through: it must be seen, not followed
+private final class NoRedirects: NSObject, URLSessionTaskDelegate {
+    func urlSession(
+        _ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
+    }
+}
+
+/// No redirects, and no cookie jar: the only cookie sent is the session's, and any `Set-Cookie` is ignored
+let tasksHttp: URLSession = {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.httpCookieStorage = nil
+    configuration.httpCookieAcceptPolicy = .never
+    configuration.httpShouldSetCookies = false
+    return URLSession(configuration: configuration, delegate: NoRedirects(), delegateQueue: nil)
+}()
 
 /// REST + SSE client for the tasks server
 final class Api {
     let base: URL
-    private let token: String
 
     init?(config: Config) {
-        guard let remote = config.remote, let token = config.token, let url = URL(string: remote) else { return nil }
+        guard let remote = config.remote, let url = URL(string: remote) else { return nil }
         base = url.appendingPathComponent("api")
-        self.token = token
     }
 
     var webUrl: URL { base.deletingLastPathComponent() }
@@ -106,7 +155,9 @@ final class Api {
     private func request(_ method: String, _ path: String, body: [String: Any]? = nil) -> URLRequest {
         var request = URLRequest(url: base.appendingPathComponent(path))
         request.httpMethod = method
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        // Read for every request: a login from the CLI or the login panel counts right away
+        request.httpShouldHandleCookies = false
+        request.setValue(Session.load()?.cookie, forHTTPHeaderField: "Cookie")
         request.timeoutInterval = 15
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -116,8 +167,9 @@ final class Api {
     }
 
     private func send(_ request: URLRequest) async throws -> Data {
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await tasksHttp.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if (300..<400).contains(status) { throw ApiError.notLoggedIn }
         guard (200..<300).contains(status) else {
             throw (try? JSONDecoder().decode(ApiError.self, from: data))
                 ?? ApiError(statusCode: status, message: "Request failed with \(status)", code: nil)
@@ -151,9 +203,11 @@ final class Api {
         var request = request("GET", "events")
         request.timeoutInterval = .infinity
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
-        let (bytes, response) = try await URLSession.shared.bytes(for: request)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-            throw ApiError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0, message: "Event stream refused", code: nil)
+        let (bytes, response) = try await tasksHttp.bytes(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if (300..<400).contains(status) { throw ApiError.notLoggedIn }
+        guard status == 200 else {
+            throw ApiError(statusCode: status, message: "Event stream refused", code: nil)
         }
         for try await line in bytes.lines where line.hasPrefix("data:") && line.count > 6 {
             onEvent()

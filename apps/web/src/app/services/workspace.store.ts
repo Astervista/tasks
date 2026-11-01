@@ -9,7 +9,7 @@ import {
   WorkspaceDocument,
   WorkspaceSummary,
 } from '@tasks/core';
-import { ApiService, AuthService, describeError } from './api.service';
+import { ApiService, describeError } from './api.service';
 import { EventsService } from './events.service';
 
 const RECENT_KEY = 'tasks-recent';
@@ -18,7 +18,6 @@ const RECENT_KEY = 'tasks-recent';
 @Injectable({ providedIn: 'root' })
 export class WorkspaceStore {
   private readonly api = inject(ApiService);
-  private readonly auth = inject(AuthService);
 
   readonly workspaces = signal<WorkspaceSummary[] | null>(null);
   readonly document = signal<WorkspaceDocument | null>(null);
@@ -200,8 +199,6 @@ export class WorkspaceStore {
     const { status, message } = describeError(error);
     if (status === 0) {
       this.connection.set('offline');
-    } else if (status === 401) {
-      this.auth.reject();
     } else if (report) {
       this.failure.set(message);
     }

@@ -21,6 +21,6 @@ RUN mkdir -p /data && chown node:node /data
 USER node
 VOLUME /data
 EXPOSE 8080
-# Up = the API answers: 200 in proxy mode (no token needed), 401 in token mode
-HEALTHCHECK --interval=30s --timeout=5s CMD node -e "fetch('http://127.0.0.1:'+process.env.PORT+'/api/current').then(r=>process.exit(r.status===200||r.status===401?0:1),()=>process.exit(1))"
+# Up = the API answers
+HEALTHCHECK --interval=30s --timeout=5s CMD node -e "fetch('http://127.0.0.1:'+process.env.PORT+'/api/current').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
 CMD ["node", "main.js"]

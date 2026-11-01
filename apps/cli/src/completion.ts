@@ -15,6 +15,8 @@ export const SHELLS: Shell[] = ['bash', 'zsh', 'fish'];
 
 const COMMANDS: [string, string][] = [
   ['remote', 'show or set the server'],
+  ['login', 'log in, approving from a browser on any device'],
+  ['logout', "end this machine's session"],
   ['init', 'link a folder to a new or known project'],
   ['clone', 'link a folder to a project on the server'],
   ['show', "browse the folder's TODO.md"],
@@ -38,11 +40,11 @@ _tasks() {
     return
   fi
   case "$prev" in
-    --token|--name|--description) return ;;
+    --name|--description) return ;;
   esac
   local dirs=0 words=""
   case "\${COMP_WORDS[1]}" in
-    remote) [[ $cword -eq 2 ]] && words="set"; [[ $cword -ge 4 ]] && words="--token" ;;
+    remote) [[ $cword -eq 2 ]] && words="set" ;;
     init) words="--name --description --new"; dirs=1 ;;
     clone) if [[ $cword -eq 2 ]]; then words="$(tasks __uids 2>/dev/null | cut -d: -f1)"; else dirs=1; fi ;;
     show) words="--history"; dirs=1 ;;
@@ -78,7 +80,7 @@ ${COMMANDS.map(([name, description]) => `    '${name}:${description.replace(/'/g
     command) _describe -t commands 'tasks command' commands ;;
     args)
       case $words[1] in
-        remote) _arguments '1:action:(set)' '2:server URL:_urls' '--token[server token]:token: ' ;;
+        remote) _arguments '1:action:(set)' '2:server URL:_urls' ;;
         init) _arguments '--name[project name]:name: ' '--description[project description]:description: ' '--new[new project from this TODO.md]' '1:folder:_directories' ;;
         clone) _arguments '1:project:_tasks_projects' '2:folder:_directories' ;;
         show) _arguments '--history[days, sessions and completed work]' '1:folder:_directories' ;;
@@ -101,7 +103,6 @@ const FISH = `# tasks completion for fish
 complete -c tasks -f
 ${COMMANDS.map(([name, description]) => `complete -c tasks -n __fish_use_subcommand -a ${name} -d '${description.replace(/'/g, "\\'")}'`).join('\n')}
 complete -c tasks -n '__fish_seen_subcommand_from remote' -a set
-complete -c tasks -n '__fish_seen_subcommand_from remote' -l token -r -d 'server token'
 complete -c tasks -n '__fish_seen_subcommand_from init' -l name -r -d 'project name'
 complete -c tasks -n '__fish_seen_subcommand_from init' -l description -r -d 'project description'
 complete -c tasks -n '__fish_seen_subcommand_from init' -l new -d 'new project from this TODO.md'

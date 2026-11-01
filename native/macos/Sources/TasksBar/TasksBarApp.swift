@@ -7,12 +7,14 @@ final class TasksModel: ObservableObject {
     @Published var openTodos: [OpenTodo] = []
     @Published var connected = false
     @Published var problem: String?
+    @Published var needsLogin = false
     @Published var now = Date()
 
     private(set) var api: Api?
     private var config: Config?
     private var fetchedAt = Date()
     private let panel = CheckInPanel()
+    private let loginPanel = LoginPanel()
     /// When the open check-in question was asked
     private var promptedAt: Date?
     /// Last answer (or "keep going"): the next question comes an interval after it
@@ -131,22 +133,31 @@ final class TasksModel: ObservableObject {
         while true {
             guard let config = Config.load(), let api = Api(config: config) else {
                 self.config = nil
-                problem = "Run `tasks remote set <url> --token <token>` first"
+                problem = "Run `tasks remote set <url>` first"
                 connected = false
                 try? await Task.sleep(nanoseconds: 10_000_000_000)
                 continue
             }
             self.api = api
             self.config = config
+            let token = Session.load()?.token
             await refresh()
             do {
                 connected = true
                 delay = 1
                 try await api.listen { [weak self] in Task { @MainActor in await self?.refresh() } }
             } catch {
-                problem = (error as? ApiError)?.message ?? error.localizedDescription
+                report(error)
             }
             connected = false
+            if needsLogin {
+                // Nothing to retry until someone logs in, from here or from the CLI
+                while Session.load()?.token == token {
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                }
+                delay = 1
+                continue
+            }
             try? await Task.sleep(nanoseconds: delay * 1_000_000_000)
             delay = min(delay * 2, 60)
         }
@@ -159,9 +170,20 @@ final class TasksModel: ObservableObject {
             openTodos = try await api.openTodos()
             fetchedAt = Date()
             problem = nil
+            needsLogin = false
         } catch {
-            problem = (error as? ApiError)?.message ?? error.localizedDescription
+            report(error)
         }
+    }
+
+    private func report(_ error: Error) {
+        problem = (error as? ApiError)?.message ?? error.localizedDescription
+        needsLogin = (error as? ApiError)?.isNotLoggedIn == true
+    }
+
+    func logIn() {
+        guard let api else { return }
+        loginPanel.show(api: api)
     }
 
     var running: Bool { current?.running == true }
@@ -290,6 +312,9 @@ struct MenuContent: View {
             Text("⚠︎ \(problem)")
         } else if !model.connected {
             Text("⚠︎ Offline")
+        }
+        if model.needsLogin {
+            Button("Log in…") { model.logIn() }
         }
         Divider()
         Button("Open web app") {

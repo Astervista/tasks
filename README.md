@@ -61,23 +61,20 @@ The HTML comments hold sync metadata, are invisible when rendered, and should be
 Step by step, from an empty host to your computers syncing: **[DEPLOY.md](DEPLOY.md)**. In short:
 
 ```sh
-cp .env.example .env            # set TASKS_TOKEN, AUTH_MODE, TASKS_UID/GID
+cp .env.example .env            # set TASKS_UID/GID
 mkdir data
 sh scripts/deploy.sh            # build, start, clean up old images and build cache
 ```
 
 Data lives in `data/` (`data/workspaces/<uid>/TODO.md`, plain Markdown). Deleted workspaces go to `data/trash`. Put TLS and your login service in front with a reverse proxy (see DEPLOY.md).
 
-The CLI, the daemon and the tray apps always send the token. The web app depends on `AUTH_MODE`:
-
-- `token`: the web app asks for the token once.
-- `proxy`: a login service in front of the server (Authelia, oauth2-proxy, …) already guards it. Requests without a token are trusted; a token that is sent must still be right. Only use this when nothing reaches the server around the login service.
+The server does no authentication of its own: the login service in front of it decides who gets in, so nothing but the reverse proxy may be able to reach it. Browsers use their normal login. The CLI, the daemon and the tray apps log in once with `tasks login` or the tray's "Log in…": you approve it in a browser on any device, and they share the session in `~/.config/tasks/session.json`.
 
 ## CLI and daemon
 
 ```sh
 npm ci && npm run cli:install                                 # installs the `tasks` command
-tasks remote set https://tasks.example.com --token <token>   # once per machine
+tasks remote set https://tasks.example.com                   # once per machine; logs in too
 cd ~/projects/something && tasks init                        # asks name + description, links the folder (re-running is a no-op)
 tasks daemon install                                         # keeps every linked project in sync, at login
 tasks completion install                                     # Tab completion for zsh, bash or fish ($SHELL)
@@ -101,7 +98,7 @@ tasks completion install                                     # Tab completion fo
 
 ## Tray apps
 
-Both read the remote and token from the CLI's config, so there's nothing to set up.
+Both read the remote and the session from the CLI's config folder. If you're not logged in yet, or the session ended, their menu has a "Log in…" entry that shows a QR code and a code to approve from a browser. Logging in there also logs in the CLI and the daemon, and the other way around.
 
 - **macOS**: run `native/macos/bundle.sh` and copy `native/macos/build/TasksBar.app` to /Applications. The first launch adds it to Login Items; "Open at Login" in its menu turns that off and on.
 - **Windows**: run `dotnet publish native/windows/TasksTray -c Release -r win-x64`, or take `TasksTray.exe` from the CI artifacts. The first launch makes it start with Windows; "Start with Windows" in its menu turns that off and on.
@@ -118,7 +115,7 @@ What they show:
 ```sh
 npm ci
 npm test                 # core (vitest) + server API (jest)
-npm run dev:server       # API on :8099, data in ./tmp/data, token dev-token-change-me-0123
+npm run dev:server       # API on :8099, data in ./tmp/data, no login
 npm run dev:web          # web app on :4200, proxied to :8099
 ```
 

@@ -1,14 +1,13 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
 /**
  * ~/.config/tasks/config.json (same place on Windows, under the user profile). Shared with the tray
- * apps, which read `remote` and `token` from it.
+ * apps, which read `remote` from it.
  */
 export interface CliConfig {
   remote: string | null;
-  token: string | null;
   /** Registered projects: workspace uid -> absolute folder */
   projects: Record<string, string>;
   /** Pause the running task when the computer sleeps (daemon and tray apps); default true */
@@ -21,21 +20,54 @@ export interface CliConfig {
 
 export const CONFIG_DIR = process.env['TASKS_CONFIG_DIR'] ?? join(homedir(), '.config', 'tasks');
 export const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
+export const SESSION_FILE = join(CONFIG_DIR, 'session.json');
+
+/**
+ * The login session of this machine, in session.json next to the config: shared by the CLI, the daemon
+ * and the tray apps, so logging in from one logs in them all. The token is a secret.
+ */
+export interface Session {
+  cookieName: string;
+  token: string;
+  expiresAt: string;
+}
 
 export function readConfig(): CliConfig {
   try {
-    const json = JSON.parse(readFileSync(CONFIG_FILE, 'utf8')) as Partial<CliConfig>;
-    return { ...json, remote: json.remote ?? null, token: json.token ?? null, projects: json.projects ?? {} };
+    // `token` was the old shared secret: dropping it here removes it from the file on the next write
+    const { token: _old, ...json } = JSON.parse(readFileSync(CONFIG_FILE, 'utf8')) as Partial<CliConfig> & { token?: unknown };
+    return { ...json, remote: json.remote ?? null, projects: json.projects ?? {} };
   } catch {
-    return { remote: null, token: null, projects: {} };
+    return { remote: null, projects: {} };
   }
 }
 
-export function writeConfig(config: CliConfig): void {
+function writeJson(file: string, value: unknown): void {
   mkdirSync(CONFIG_DIR, { recursive: true });
-  const temp = `${CONFIG_FILE}.tmp`;
-  writeFileSync(temp, JSON.stringify(config, null, 2) + '\n', { mode: 0o600 });
-  renameSync(temp, CONFIG_FILE);
+  const temp = `${file}.tmp`;
+  writeFileSync(temp, JSON.stringify(value, null, 2) + '\n', { mode: 0o600 });
+  renameSync(temp, file);
+}
+
+export function writeConfig(config: CliConfig): void {
+  writeJson(CONFIG_FILE, config);
+}
+
+export function readSession(): Session | null {
+  try {
+    const session = JSON.parse(readFileSync(SESSION_FILE, 'utf8')) as Partial<Session>;
+    return session.cookieName && session.token ? (session as Session) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeSession(session: Session): void {
+  writeJson(SESSION_FILE, session);
+}
+
+export function clearSession(): void {
+  rmSync(SESSION_FILE, { force: true });
 }
 
 export function updateConfig(change: (config: CliConfig) => void): CliConfig {

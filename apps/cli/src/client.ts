@@ -11,7 +11,10 @@ import {
   WorkspaceFiles,
   WorkspaceSummary,
 } from '@tasks/core';
-import { CliConfig } from './config';
+import { CliConfig, readSession } from './config';
+
+/** The login service in front of the server answers a redirect to anyone it doesn't let through */
+export const NOT_LOGGED_IN = 401;
 
 export class RemoteError extends Error {
   constructor(
@@ -22,22 +25,33 @@ export class RemoteError extends Error {
   }
 }
 
+function isRedirect(response: Response): boolean {
+  return response.status >= 300 && response.status < 400;
+}
+
+function notLoggedIn(): RemoteError {
+  return new RemoteError(NOT_LOGGED_IN, 'Not logged in, or the session ended. Run: tasks login');
+}
+
+/** Read for every request: a login from another tool or terminal counts right away */
+function sessionHeaders(): Record<string, string> {
+  const session = readSession();
+  return session == null ? {} : { Cookie: `${session.cookieName}=${session.token}` };
+}
+
 /** REST client for the tasks server */
 export class Client {
   private readonly base: string;
 
-  constructor(
-    remote: string,
-    private readonly token: string,
-  ) {
+  constructor(remote: string) {
     this.base = `${remote.replace(/\/+$/, '')}/${API_PREFIX}`;
   }
 
   static fromConfig(config: CliConfig): Client {
-    if (config.remote == null || config.token == null) {
-      throw new Error('No remote configured. Run: tasks remote set <url> --token <token>');
+    if (config.remote == null) {
+      throw new Error('No remote configured. Run: tasks remote set <url>');
     }
-    return new Client(config.remote, config.token);
+    return new Client(config.remote);
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -46,14 +60,18 @@ export class Client {
       response = await fetch(`${this.base}${path}`, {
         method,
         headers: {
-          Authorization: `Bearer ${this.token}`,
+          ...sessionHeaders(),
           ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
         },
         body: body === undefined ? undefined : JSON.stringify(body),
+        redirect: 'manual',
         signal: AbortSignal.timeout(30_000),
       });
     } catch (error) {
       throw new RemoteError(0, `Cannot reach ${this.base}: ${(error as Error).message}`);
+    }
+    if (isRedirect(response)) {
+      throw notLoggedIn();
     }
     if (!response.ok) {
       const error = (await response.json().catch(() => null)) as ApiError | null;
@@ -104,17 +122,22 @@ export class Client {
   }
 
   /**
-   * Streams server events until `signal` aborts; reconnects with backoff. `onState` reports
-   * connection changes.
+   * Streams server events until `signal` aborts; reconnects with backoff, or as soon as there is a new
+   * session if the login is what's missing. `onState` reports connection changes.
    */
   async listen(onEvent: (event: ServerEvent) => void, onState: (connected: boolean, error?: string) => void, signal: AbortSignal): Promise<void> {
     let delay = 1000;
     while (!signal.aborted) {
+      const token = readSession()?.token;
       try {
         const response = await fetch(`${this.base}/events`, {
-          headers: { Authorization: `Bearer ${this.token}`, Accept: 'text/event-stream' },
+          headers: { ...sessionHeaders(), Accept: 'text/event-stream' },
+          redirect: 'manual',
           signal,
         });
+        if (isRedirect(response)) {
+          throw notLoggedIn();
+        }
         if (!response.ok || response.body == null) {
           throw new RemoteError(response.status, `Event stream refused with ${response.status}`);
         }
@@ -127,6 +150,12 @@ export class Client {
           return;
         }
         onState(false, (error as Error).message);
+        if (error instanceof RemoteError && error.status === NOT_LOGGED_IN) {
+          while (!signal.aborted && readSession()?.token === token) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+          continue;
+        }
       }
       await new Promise(resolve => setTimeout(resolve, delay));
       delay = Math.min(delay * 2, 60_000);

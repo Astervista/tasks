@@ -3,7 +3,6 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { ConfirmDialog } from './dialogs/confirm-dialog';
-import { LoginDialog } from './dialogs/login-dialog';
 import { StatsDialog } from './dialogs/stats-dialog';
 import { TodoDialog } from './dialogs/todo-dialog';
 import { CheckInDialog } from './dialogs/checkin-dialog';
@@ -11,7 +10,6 @@ import { ProjectDialog } from './dialogs/project-dialog';
 import { ProjectBar } from './projects/project-bar';
 import { ProjectList } from './projects/project-list';
 import { randomClownColor } from './ui/clown';
-import { AuthService } from './services/api.service';
 import { DialogService } from './services/dialog.service';
 import { WorkspaceStore } from './services/workspace.store';
 import { StatusBar } from './status/status-bar';
@@ -25,7 +23,7 @@ import { Modal } from './ui/modal';
 @Component({
   selector: 't-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ProjectList, ProjectBar, TaskList, StatusBar, TodoDialog, ConfirmDialog, StatsDialog, LoginDialog, ProjectDialog, CheckInDialog, Modal],
+  imports: [ProjectList, ProjectBar, TaskList, StatusBar, TodoDialog, ConfirmDialog, StatsDialog, ProjectDialog, CheckInDialog, Modal],
   template: `
     @if (store.connection() === 'ready') {
       @if (store.workspace()) {
@@ -37,7 +35,7 @@ import { Modal } from './ui/modal';
       }
     }
     <div id="effects"></div>
-    <div id="loading" [style.transform]="store.connection() === 'loading' && !auth.needed() ? 'scale(1)' : 'scale(0)'">
+    <div id="loading" [style.transform]="store.connection() === 'loading' ? 'scale(1)' : 'scale(0)'">
       <svg height="24px" viewBox="0 0 24 24" width="24px" id="hourglass">
         <defs>
           <clipPath id="hourglass-shape">
@@ -60,9 +58,6 @@ import { Modal } from './ui/modal';
       <span><span style="cursor: pointer; color: #ff3c63" (click)="start()">Click here</span> to retry</span>
     </div>
 
-    @if (auth.needed()) {
-      <t-login-dialog />
-    }
     @if (dialogs.todo(); as request) {
       <t-todo-dialog [data]="request.data" [workspace]="store.workspace()!" [save]="request.save" [done]="closeTodoDialog" />
     }
@@ -94,7 +89,6 @@ import { Modal } from './ui/modal';
 })
 export class App {
   protected readonly store = inject(WorkspaceStore);
-  protected readonly auth = inject(AuthService);
   protected readonly dialogs = inject(DialogService);
   private readonly router = inject(Router);
 
@@ -124,12 +118,7 @@ export class App {
   constructor() {
     // The page scrollbar gets its own clown color too
     document.documentElement.style.setProperty('--clown', randomClownColor());
-    // (Re)load whenever we get a usable token
-    effect(() => {
-      if (!this.auth.needed()) {
-        untracked(() => void this.start());
-      }
-    });
+    void this.start();
     // The URL decides which workspace is open
     effect(() => {
       const uid = this.routeUid();

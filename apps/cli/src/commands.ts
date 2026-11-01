@@ -2,31 +2,42 @@ import { existsSync, promises as fs } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { parseWorkspace, serializeWorkspace } from '@tasks/core';
-import { Client } from './client';
-import { readConfig, uidForPath, updateConfig } from './config';
+import { Client, NOT_LOGGED_IN, RemoteError } from './client';
+import { clearSession, readConfig, readSession, uidForPath, updateConfig } from './config';
+import { login, loginSite } from './login';
 import { localState, readUid, syncProject, SyncOutcome, todoPath, TODO_FILE, writeAtomic } from './project';
 
-export async function remoteSet(url: string, token: string | undefined): Promise<void> {
+export async function remoteSet(url: string): Promise<void> {
   const remote = url.replace(/\/+$/, '');
   if (!/^https?:\/\//.test(remote)) {
     throw new Error('The remote must be an http(s) URL, e.g. https://tasks.example.com');
   }
-  const config = readConfig();
-  const effectiveToken = token ?? config.token;
-  if (effectiveToken == null) {
-    throw new Error('Pass the server token: tasks remote set <url> --token <token>');
-  }
-  const workspaces = await new Client(remote, effectiveToken).workspaces();
+  await loginSite(remote); // Fails when the remote can't be reached
+  const changed = readConfig().remote !== remote;
   updateConfig(next => {
     next.remote = remote;
-    next.token = effectiveToken;
   });
-  console.log(`Remote set to ${remote} (${workspaces.length} workspace(s) there)`);
+  // The session is a secret of the old remote's login: the new one must not receive it
+  if (changed) clearSession();
+  console.log(`Remote set to ${remote}`);
+  await new Client(remote).workspaces().then(
+    workspaces => console.log(`${workspaces.length} workspace(s) there`),
+    (error: unknown) => {
+      if (!(error instanceof RemoteError && error.status === NOT_LOGGED_IN)) throw error;
+      if (process.stdin.isTTY) return login();
+      console.log('Run "tasks login" to log in');
+    },
+  );
 }
 
 export function remoteShow(): void {
   const config = readConfig();
-  console.log(config.remote ?? '(no remote; run tasks remote set <url> --token <token>)');
+  if (config.remote == null) {
+    console.log('(no remote; run tasks remote set <url>)');
+    return;
+  }
+  console.log(config.remote);
+  console.log(readSession() == null ? 'Not logged in' : 'Logged in');
 }
 
 /** Asks on the terminal; returns the default when not interactive or left empty */
@@ -172,7 +183,10 @@ export async function status(): Promise<void> {
     console.log('No registered projects. Run "tasks init" in a project folder.');
     return;
   }
-  const remote = config.remote == null ? null : await Client.fromConfig(config).workspaces().catch(() => null);
+  const remote = config.remote == null ? null : await Client.fromConfig(config).workspaces().catch((error: Error) => {
+    console.log(error.message);
+    return null;
+  });
   for (const [uid, dir] of entries) {
     const local = await localState(dir);
     const server = remote?.find(item => item.uid === uid);
