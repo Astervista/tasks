@@ -1,4 +1,4 @@
-import { afterRenderEffect, ChangeDetectionStrategy, Component, computed, effect, ElementRef, inject, signal, viewChild } from '@angular/core';
+import { afterRenderEffect, ChangeDetectionStrategy, Component, computed, effect, ElementRef, HostListener, inject, signal, viewChild } from '@angular/core';
 import {
   canMoveTo,
   childrenOf,
@@ -72,6 +72,20 @@ type DropZone = 'before' | 'inside' | 'after';
           <span class="timeline-ranges">
             <span class="suggestion-separator">Zoom</span>
             <t-zoom-dial [value]="view.zoom()" (changed)="setZoom($event)" />
+            <span class="material-icons timeline-info" [class.open]="legendOpen()" title="Legend"
+                  (click)="$event.stopPropagation(); legendOpen.set(!legendOpen())">info_outline</span>
+            @if (legendOpen()) {
+              <div class="timeline-legend-pop" (click)="$event.stopPropagation()">
+                @for (item of legend(); track item.label) {
+                  <span class="item">
+                    <t-timeline-lane class="legend-lane" [items]="item.items" [axis]="legendAxis" [open]="false" />{{ item.label }}
+                  </span>
+                }
+                <span class="item">
+                  <t-timeline-lane class="legend-lane" [items]="[]" [flags]="legendFlag" [axis]="legendAxis" [open]="false" />Check-in
+                </span>
+              </div>
+            }
           </span>
           <span #viewport class="timeline-ticks">
             <span class="lane-inner" [style.width.px]="axis()?.width ?? 0" [style.transform]="'translateX(' + -(axis()?.scroll ?? 0) + 'px)'">
@@ -94,7 +108,8 @@ type DropZone = 'before' | 'inside' | 'after';
         </pattern>
       </defs>
     </svg>
-    <div id="tasks" tClown [class.timeline-mode]="view.mode() === 'timeline'" (wheel)="wheel($event)">
+    <div id="tasks" tClown [class.timeline-mode]="view.mode() === 'timeline'" (wheel)="wheel($event)"
+         (pointerdown)="touchStart($event)" (pointermove)="touchMove($event)" (pointerup)="touch = null" (pointercancel)="touch = null">
       @for (row of rows(); track row.todo.id) {
         <t-task-row [row]="row" [maxWeight]="maxWeight()" [axis]="axis()" [lane]="lanes()?.get(row.todo.id + '') ?? null"
                     [ownLane]="lanes()?.get(row.todo.id + ':own') ?? null"
@@ -106,18 +121,6 @@ type DropZone = 'before' | 'inside' | 'after';
                     (dragOver)="dragOver(row, $event)" (dropped)="dropOn(row, $event)" />
       }
     </div>
-    @if (view.mode() === 'timeline') {
-      <div class="stats-legend timeline-legend">
-        @for (item of legend(); track item.label) {
-          <span class="item static">
-            <t-timeline-lane class="legend-lane" [items]="item.items" [axis]="legendAxis" [open]="false" />{{ item.label }}
-          </span>
-        }
-        <span class="item static">
-          <t-timeline-lane class="legend-lane" [items]="[]" [flags]="legendFlag" [axis]="legendAxis" [open]="false" />Check-in
-        </span>
-      </div>
-    }
   `,
 })
 export class TaskList {
@@ -275,9 +278,45 @@ export class TaskList {
     const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.shiftKey ? event.deltaY : 0;
     if (delta === 0) return;
     event.preventDefault();
+    this.scrollTo(axis.scroll + delta);
+  }
+
+  /**
+   * Touch: a sideways swipe over the rows scrolls the timeline (the rows only pan vertically by
+   * themselves, see styles.css); the direction is decided by the first few pixels.
+   */
+  protected touch: { id: number; x: number; y: number; scroll: number; sideways: boolean | null } | null = null;
+
+  protected touchStart(event: PointerEvent): void {
+    const axis = this.axis();
+    if (event.pointerType !== 'touch' || axis == null) return;
+    this.touch = { id: event.pointerId, x: event.clientX, y: event.clientY, scroll: axis.scroll, sideways: null };
+  }
+
+  protected touchMove(event: PointerEvent): void {
+    const touch = this.touch;
+    if (touch == null || event.pointerId !== touch.id) return;
+    const dx = event.clientX - touch.x;
+    const dy = event.clientY - touch.y;
+    if (touch.sideways == null && Math.abs(dx) + Math.abs(dy) > 8) touch.sideways = Math.abs(dx) > Math.abs(dy);
+    if (touch.sideways) this.scrollTo(touch.scroll - dx);
+  }
+
+  private scrollTo(position: number): void {
+    const axis = this.axis();
+    if (axis == null) return;
     const max = Math.max(0, axis.width - this.visible());
-    const next = Math.min(max, Math.max(0, axis.scroll + delta));
+    const next = Math.min(max, Math.max(0, position));
     this.scroll.set(next >= max - 1 ? null : next);
+  }
+
+  /** The legend, next to the zoom; closes on any click elsewhere or Escape */
+  protected readonly legendOpen = signal(false);
+
+  @HostListener('document:click')
+  @HostListener('document:keydown.escape')
+  protected closeLegend(): void {
+    this.legendOpen.set(false);
   }
 
   /** Bars are relative to the heaviest row (a macrotask's weight is its whole subtree's) */

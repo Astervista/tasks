@@ -18,9 +18,16 @@ t-overlays {
 }
 
 /* Scrollbars: rounded, in a clown color picked at random per scrolling surface (--clown, see clown.ts) */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--clown, deeppink) transparent;
+/*
+ * Chrome and Safari draw these ::-webkit-scrollbar ones, which stay visible. The standard properties
+ * would take precedence there and give macOS's overlay scrollbars, which fade away and cannot be
+ * grabbed until you scroll again: they are only for browsers without the pseudo-elements (Firefox).
+ */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--clown, deeppink) transparent;
+  }
 }
 ::-webkit-scrollbar {
   width: 12px;
@@ -704,8 +711,53 @@ t-project-bar {
   color: #ddd;
 }
 
-.timeline-legend {
-  padding: 12px 15px;
+/* Legend: behind the (i) next to the zoom */
+.timeline-ranges {
+  position: relative;
+  gap: 4px;
+}
+
+.timeline-info {
+  cursor: pointer;
+  color: #aaa;
+  font-size: 22px;
+  padding: 2px;
+  border-radius: 50%;
+}
+
+.timeline-info:hover,
+.timeline-info.open {
+  color: #fff;
+  background: #444;
+}
+
+.timeline-legend-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  min-width: 220px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #3a3a3a;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.timeline-legend-pop .item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Touch: the rows pan vertically by themselves; sideways swipes scroll the timeline (task-list.ts) */
+#tasks.timeline-mode {
+  touch-action: pan-y;
 }
 
 .legend-lane {
@@ -973,21 +1025,34 @@ body {
     flex: 0 0 auto;
     margin: 8px;
   }
+  /* The add button floats: bottom right, above the status bar, like a FAB */
   #status-add {
-    flex: 0 0 44px;
-    width: 44px;
+    position: fixed;
+    right: 16px;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+    z-index: 900;
+    width: 56px;
     min-width: 0;
-    max-width: 44px;
-    height: 44px;
-    margin: 8px;
+    max-width: 56px;
+    height: 56px;
+    margin: 0;
     padding: 0;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 0 3px 5px -1px rgba(0, 0, 0, 0.3), 0 6px 10px rgba(0, 0, 0, 0.25), 0 1px 18px rgba(0, 0, 0, 0.2);
   }
   #status-add::before {
-    margin: 0;
+    font-size: 26px;
+  }
+  /* Room under the last row, so the FAB never covers it */
+  #tasks,
+  .project-rows {
+    padding-bottom: 88px;
+  }
+  #status-add::before {
+    margin: 0 !important;
   }
   #status-add .status-add-label {
     display: none;
@@ -1038,16 +1103,5 @@ body {
   }
   .zoom-dial-wheel {
     width: 72px;
-  }
-  /* One line that scrolls sideways, instead of five */
-  .timeline-legend {
-    padding: 8px 10px;
-    font-size: 12px;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    white-space: nowrap;
-  }
-  .timeline-legend .item {
-    flex: 0 0 auto;
   }
 }
