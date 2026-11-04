@@ -100,8 +100,10 @@ tasks completion install                                     # Tab completion fo
 
 Both read the remote and the session from the CLI's config folder. If you're not logged in yet, or the session ended, their menu has a "Log in…" entry that shows a QR code and a code to approve from a browser. Logging in there also logs in the CLI and the daemon, and the other way around.
 
-- **macOS**: run `native/macos/bundle.sh` and copy `native/macos/build/TasksBar.app` to /Applications. The first launch adds it to Login Items; "Open at Login" in its menu turns that off and on.
-- **Windows**: run `dotnet publish native/windows/TasksTray -c Release -r win-x64`, or take `TasksTray.exe` from the CI artifacts. The first launch makes it start with Windows; "Start with Windows" in its menu turns that off and on.
+Download them from [Releases](https://github.com/Astervista/tasks/releases/latest), or build them yourself:
+
+- **macOS**: take `TasksBar.zip` (Apple Silicon and Intel), or run `native/macos/bundle.sh`. Copy `TasksBar.app` to /Applications. It isn't notarized, so after downloading it run `xattr -dr com.apple.quarantine /Applications/TasksBar.app` once. The first launch adds it to Login Items; "Open at Login" in its menu turns that off and on.
+- **Windows**: take `TasksTray.exe`, or run `dotnet publish native/windows/TasksTray -c Release -r win-x64`. Windows may warn that it's from an unknown publisher: choose "More info", then "Run anyway". The first launch makes it start with Windows; "Start with Windows" in its menu turns that off and on.
 
 What they show:
 - The current task and its timer.
@@ -109,6 +111,8 @@ What they show:
 - "Switch to" across all workspaces and macrotasks.
 - Today's total.
 - A link to the web app.
+
+To publish a version, write its text in `.github/release-notes/<tag>.md` and push the tag, such as `v2.0.1`. CI builds both apps and attaches them to that tag's release, creating the release if needed.
 
 ## Development
 

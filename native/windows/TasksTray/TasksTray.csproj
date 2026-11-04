@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>TasksTray</AssemblyName>
-    <Version>2.0.0</Version>
+    <Version>2.0.1</Version>
     <!-- dotnet publish -c Release -r win-x64 produces a single TasksTray.exe -->
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>

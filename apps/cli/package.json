@@ -1,6 +1,6 @@
 {
   "name": "@tasks/cli",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "description": "tasks: links project folders to the tasks server and keeps TODO.md in sync",
   "bin": {
