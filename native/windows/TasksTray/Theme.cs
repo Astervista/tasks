@@ -234,6 +234,27 @@ internal static class Native
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr window, int attribute, ref int value, int size);
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LastInputInfo
+    {
+        public uint Size;
+        public uint Time;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool GetLastInputInfo(ref LastInputInfo info);
+
+    /// <summary>How long since the last keyboard or mouse input</summary>
+    public static TimeSpan IdleTime
+    {
+        get
+        {
+            var info = new LastInputInfo { Size = (uint)Marshal.SizeOf<LastInputInfo>() };
+            if (!GetLastInputInfo(ref info)) return TimeSpan.MaxValue;
+            return TimeSpan.FromMilliseconds((uint)Environment.TickCount - info.Time);
+        }
+    }
+
     /// <summary>Windows 11 rounds windows that ask for it</summary>
     public static bool HasRoundedWindows => Environment.OSVersion.Version.Build >= 22000;
 

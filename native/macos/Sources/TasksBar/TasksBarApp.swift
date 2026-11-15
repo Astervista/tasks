@@ -22,6 +22,7 @@ final class TasksModel: ObservableObject {
     /// Last answer (or "keep going"): the next question comes an interval after it
     private var answeredAt: Date?
     private var offeringResume = false
+    private var screenLocked = false
 
     init() {
         Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -32,10 +33,33 @@ final class TasksModel: ObservableObject {
         }
         let workspace = NSWorkspace.shared.notificationCenter
         workspace.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor [weak self] in await self?.willSleep() }
+            Task { @MainActor [weak self] in await self?.pauseNow("sleep") }
         }
         workspace.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor [weak self] in await self?.offerResume() }
+        }
+        // The lock key, ⌃⌘Q or the display turning off: the person left, even if the Mac stays awake
+        workspace.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in await self?.pauseNow("lock") }
+        }
+        workspace.addObserver(forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                // Still locked: the offer waits for the unlock, not to show up behind the lock screen
+                if self?.screenLocked == false { await self?.offerResume() }
+            }
+        }
+        let distributed = DistributedNotificationCenter.default()
+        distributed.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.screenLocked = true
+                await self?.pauseNow("lock")
+            }
+        }
+        distributed.addObserver(forName: .init("com.apple.screenIsUnlocked"), object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.screenLocked = false
+                await self?.offerResume()
+            }
         }
         // Shut down, restart or log out: the app quits right after, so the offer waits for the next start
         workspace.addObserver(forName: NSWorkspace.willPowerOffNotification, object: nil, queue: .main) { [weak self] _ in
@@ -45,13 +69,18 @@ final class TasksModel: ObservableObject {
         Task { await run() }
     }
 
-    // MARK: Sleep and logout: the hours the computer is off are not work, and coming back offers to resume
+    // MARK: Sleep, lock and logout: the hours away are not work, and coming back offers to resume
 
     private var pauseOnSleep: Bool { config?.pauseOnSleep ?? true }
 
     /// Remembers what was running, then pauses it as of now
     private func pauseForSystem(_ reason: String) -> (CurrentTask, Date)? {
         guard pauseOnSleep, running, let current else { return nil }
+        // Locking also turns the display off: the first of the two is when the person left
+        if let paused = SystemPause.load(), paused.uid == current.uid, paused.id == current.todo.id,
+           let since = current.todo.runningSince, since <= paused.date {
+            return nil
+        }
         let at = Date()
         SystemPause(uid: current.uid, id: current.todo.id, name: current.todo.name,
                     at: (at.timeIntervalSince1970 * 1000).rounded(), reason: reason).save()
@@ -60,8 +89,8 @@ final class TasksModel: ObservableObject {
         return (current, at)
     }
 
-    private func willSleep() async {
-        guard let (task, at) = pauseForSystem("sleep"), let api else { return }
+    private func pauseNow(_ reason: String) async {
+        guard let (task, at) = pauseForSystem(reason), let api else { return }
         try? await api.setStatus(uid: task.uid, id: task.todo.id, status: "paused", at: at)
     }
 
@@ -98,12 +127,21 @@ final class TasksModel: ObservableObject {
         }
     }
 
+    /// A pause waiting for its offer, and someone using the computer: they're back (after an unanswered
+    /// check-in, or a lock the app missed)
+    private func offerResumeIfBack() {
+        guard !screenLocked, !offeringResume, !resumePanel.isOpen, SystemPause.load() != nil else { return }
+        let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: ~0)!)
+        if idle < 60 { Task { await offerResume() } }
+    }
+
     // MARK: Check-ins: "how far along?" while a task runs, so none is left running forgotten
 
     private var checkInInterval: TimeInterval { (config?.checkInMinutes ?? 45) * 60 }
     private var checkInGrace: TimeInterval { (config?.checkInGraceMinutes ?? 10) * 60 }
 
     private func checkInTick() {
+        offerResumeIfBack()
         guard let current, running, let since = current.todo.runningSince else {
             panel.close()
             promptedAt = nil
@@ -115,6 +153,9 @@ final class TasksModel: ObservableObject {
                 self.promptedAt = nil
                 panel.close()
                 problem = "Paused “\(current.todo.name)”: no answer to the check-in"
+                // Offered back as soon as someone is at the computer again
+                SystemPause(uid: current.uid, id: current.todo.id, name: current.todo.name,
+                            at: (promptedAt.timeIntervalSince1970 * 1000).rounded(), reason: "check-in").save()
                 Task {
                     try? await api?.setStatus(uid: current.uid, id: current.todo.id, status: "paused", at: promptedAt)
                     await refresh()

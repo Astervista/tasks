@@ -112,7 +112,7 @@ What they show:
 - Today's total.
 - The web app in a small window by the icon, already logged in with the tools' session ("Open web app"; on Windows a click on the icon). "Open in browser" opens it in the browser instead.
 
-While a task runs they ask "how far along?" every 45 minutes (`checkInMinutes` in `~/.config/tasks/config.json`, 0 turns it off); with no answer in 10 minutes (`checkInGraceMinutes`) the task is paused as of the question. When the computer sleeps, shuts down or logs out they pause the running task (`pauseOnSleep: false` turns that off), and when you're back they ask whether to resume it.
+While a task runs they ask "how far along?" every 45 minutes (`checkInMinutes` in `~/.config/tasks/config.json`, 0 turns it off); with no answer in 10 minutes (`checkInGraceMinutes`) the task is paused as of the question, and they offer to resume it as soon as you use the computer again. When the computer sleeps, locks (or turns the display off), shuts down or logs out they pause the running task (`pauseOnSleep: false` turns that off), and when you're back they ask whether to resume it.
 
 To publish a version, write its text in `.github/release-notes/<tag>.md` and push the tag, such as `v2.1.0`. CI builds both apps and attaches them to that tag's release, creating the release if needed.
 

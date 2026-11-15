@@ -47,6 +47,7 @@ internal sealed class TrayContext : ApplicationContext
     private DateTimeOffset? answeredAt;
     private ResumeForm? resumeForm;
     private bool offeringResume;
+    private bool screenLocked;
     private WebForm? webForm;
     /// <summary>A single click waits to see whether it becomes a double click</summary>
     private readonly System.Windows.Forms.Timer clickTimer = new() { Interval = SystemInformation.DoubleClickTime };
@@ -65,12 +66,13 @@ internal sealed class TrayContext : ApplicationContext
         checkInTimer.Start();
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
         SystemEvents.SessionEnding += OnSessionEnding;
+        SystemEvents.SessionSwitch += OnSessionSwitch;
         LoginItem.OfferOnce();
         UpdateIcon();
         _ = Run();
     }
 
-    // Sleep and logoff: the hours the computer is off are not work, and coming back offers to resume ----
+    // Sleep, lock and logoff: the hours away are not work, and coming back offers to resume ----------
 
     private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
     {
@@ -78,18 +80,48 @@ internal sealed class TrayContext : ApplicationContext
         else if (e.Mode == PowerModes.Resume) _ = OfferResume();
     }
 
+    /// <summary>Win+L or a switch to another user: the person left, even if the PC stays awake</summary>
+    private void OnSessionSwitch(object? sender, SessionSwitchEventArgs e)
+    {
+        if (e.Reason is SessionSwitchReason.SessionLock or SessionSwitchReason.ConsoleDisconnect or SessionSwitchReason.RemoteDisconnect)
+        {
+            screenLocked = true;
+            PauseForSystem("lock", wait: false);
+        }
+        else if (e.Reason is SessionSwitchReason.SessionUnlock or SessionSwitchReason.ConsoleConnect or SessionSwitchReason.RemoteConnect)
+        {
+            screenLocked = false;
+            _ = OfferResume();
+        }
+    }
+
     /// <summary>Logoff or shutdown: the app closes right after, so the offer waits for the next start</summary>
     private void OnSessionEnding(object? sender, SessionEndingEventArgs e) =>
         PauseForSystem(e.Reason == SessionEndReasons.Logoff ? "logoff" : "shutdown");
 
     /// <summary>Remembers what was running, then pauses it as of now (briefly waiting: the network may go next)</summary>
-    private void PauseForSystem(string reason)
+    private void PauseForSystem(string reason, bool wait = true)
     {
         if (config?.PauseOnSleep == false || !Running || current is not { } task || api == null) return;
+        // Already paused for the system since it started running (a lock, then sleep): the first one counts
+        if (SystemPause.Load() is { } paused && paused.Uid == task.Uid && paused.Id == task.Todo.Id &&
+            task.Todo.RunningSince is { } since && since <= paused.Date) return;
         var at = DateTimeOffset.Now;
         new SystemPause(task.Uid, task.Todo.Id, task.Todo.Name, at.ToUnixTimeMilliseconds(), reason).Save();
         CloseCheckIn();
-        try { api.SetStatus(task.Uid, task.Todo.Id, "paused", at: at).Wait(TimeSpan.FromSeconds(3)); } catch { }
+        var sent = api.SetStatus(task.Uid, task.Todo.Id, "paused", at: at);
+        if (wait) try { sent.Wait(TimeSpan.FromSeconds(3)); } catch { }
+        else _ = SetStatusAt(task, at, sent);
+    }
+
+    /// <summary>
+    /// A pause waiting for its offer, and someone using the computer: they're back (after an unanswered
+    /// check-in, or a lock the app missed)
+    /// </summary>
+    private void OfferResumeIfBack()
+    {
+        if (screenLocked || offeringResume || resumeForm is { IsDisposed: false } || SystemPause.Load() == null) return;
+        if (Native.IdleTime < TimeSpan.FromMinutes(1)) _ = OfferResume();
     }
 
     /// <summary>
@@ -166,6 +198,7 @@ internal sealed class TrayContext : ApplicationContext
 
     private void CheckInTick()
     {
+        OfferResumeIfBack();
         if (current is not { Running: true } task || task.Todo.RunningSince is not { } since)
         {
             CloseCheckIn();
@@ -178,6 +211,8 @@ internal sealed class TrayContext : ApplicationContext
                 // Nobody answered: the work stopped when we asked
                 CloseCheckIn();
                 problem = $"Paused “{task.Todo.Name}”: no answer to the check-in";
+                // Offered back as soon as someone is at the computer again
+                new SystemPause(task.Uid, task.Todo.Id, task.Todo.Name, asked.ToUnixTimeMilliseconds(), "check-in").Save();
                 _ = SetStatusAt(task, asked);
             }
             return;
@@ -187,9 +222,9 @@ internal sealed class TrayContext : ApplicationContext
         if (DateTimeOffset.Now - last >= CheckInInterval) AskCheckIn();
     }
 
-    private async Task SetStatusAt(CurrentTask task, DateTimeOffset at)
+    private async Task SetStatusAt(CurrentTask task, DateTimeOffset at, Task? sent = null)
     {
-        try { if (api != null) await api.SetStatus(task.Uid, task.Todo.Id, "paused", at: at); } catch (Exception error) { problem = error.Message; }
+        try { if (api != null) await (sent ?? api.SetStatus(task.Uid, task.Todo.Id, "paused", at: at)); } catch (Exception error) { problem = error.Message; }
         await Refresh();
     }
 
@@ -509,6 +544,7 @@ internal sealed class TrayContext : ApplicationContext
     {
         SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         SystemEvents.SessionEnding -= OnSessionEnding;
+        SystemEvents.SessionSwitch -= OnSessionSwitch;
         CloseCheckIn();
         CloseResume();
         webForm?.Dispose();

@@ -1,7 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// The task this app paused because the computer went to sleep, shut down or logged out. Kept on disk,
+/// The task this app paused because the computer went to sleep, locked, shut down or logged out, or a
+/// check-in went unanswered. Kept on disk,
 /// so the offer to resume survives a logout, and cleared once the offer is made.
 struct SystemPause: Codable {
     let uid: String
@@ -9,7 +10,8 @@ struct SystemPause: Codable {
     let name: String
     /// Epoch milliseconds, like the API
     let at: Double
-    /// "sleep" or "power-off" (shut down, restart or log out)
+    /// "sleep", "lock" (screen locked or display off), "check-in" (unanswered) or "power-off" (shut down,
+    /// restart or log out)
     let reason: String
 
     var date: Date { Date(timeIntervalSince1970: at / 1000) }
@@ -31,11 +33,16 @@ struct SystemPause: Codable {
     }
 
     var because: String {
-        reason == "sleep" ? "when the computer went to sleep" : "when the computer shut down or you logged out"
+        switch reason {
+        case "sleep": "when the computer went to sleep"
+        case "lock": "when the screen was locked or turned off"
+        case "check-in": "because nobody answered the check-in"
+        default: "when the computer shut down or you logged out"
+        }
     }
 }
 
-/// "Welcome back": offers to resume the task that sleep or a logout paused, so the timer doesn't stay
+/// "Welcome back": offers to resume the task that sleep, a lock, a logout or a check-in paused, so the timer doesn't stay
 /// off without anyone noticing
 @MainActor
 final class ResumePanel {

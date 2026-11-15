@@ -39,12 +39,14 @@ public record SystemPause(string Uid, int Id, string Name, double At, string Rea
     {
         "sleep" => "when the computer went to sleep",
         "logoff" => "when you signed out",
+        "lock" => "when the computer was locked",
+        "check-in" => "because nobody answered the check-in",
         _ => "when the computer shut down",
     };
 }
 
 /// <summary>
-/// "Welcome back": offers to resume the task that sleep or a logoff paused, so the timer doesn't stay
+/// "Welcome back": offers to resume the task that sleep, a lock, a logoff or a check-in paused, so the timer doesn't stay
 /// off without anyone noticing
 /// </summary>
 internal sealed class ResumeForm : FloatingForm
