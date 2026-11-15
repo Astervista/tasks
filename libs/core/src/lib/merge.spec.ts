@@ -1,4 +1,4 @@
-import { emptyArchive } from './archive';
+import { archiveTodo, emptyArchive } from './archive';
 import { parseWorkspace, serializeWorkspace } from './markdown';
 import { mergeWorkspace } from './merge';
 import { cloneWorkspace, emptyWorkspace, findTodo, openSession, Workspace } from './model';
@@ -203,5 +203,58 @@ describe('mergeWorkspace', () => {
     expect(second.archive.todos).toEqual([]);
     expect(findTodo(second.workspace, 5)?.completed).toBeNull();
     void file;
+  });
+});
+
+describe('mergeWorkspace and the archive', () => {
+  /** Archives "Be happy" (id 5) by hand on the server, the way the API does */
+  function archived() {
+    const { server, archive, file } = setup();
+    const nextServer = cloneWorkspace(server);
+    const nextArchive = cloneWorkspace(archive);
+    archiveTodo(nextServer, nextArchive, 5);
+    stampRevisions(server, nextServer);
+    stampRevisions(archive, nextArchive, nextServer.revision);
+    nextArchive.revision = nextServer.revision;
+    return { server: nextServer, archive: nextArchive, file };
+  }
+
+  it('keeps a todo archived when an older file still has it', () => {
+    const { server, archive, file } = archived();
+    const result = merge(server, archive, file);
+    expect(names(result.workspace)).not.toContain('Be happy');
+    expect(names(result.archive)).toEqual(['Be happy']);
+  });
+
+  it('brings a todo back when it is moved from the archive file by hand', () => {
+    const { server, archive } = archived();
+    const block = serializeWorkspace(archive).slice(serializeWorkspace(archive).indexOf('## Be happy'));
+    const result = merge(server, archive, `${serializeWorkspace(server)}\n${block}`);
+    expect(names(result.workspace)).toContain('Be happy');
+    expect(result.archive.todos).toEqual([]);
+  });
+});
+
+describe('archiveTodo', () => {
+  it('archives an open macrotask with its subtasks', () => {
+    const { server, archive } = setup();
+    archiveTodo(server, archive, 1);
+    expect(names(server)).toEqual(['Be happy']);
+    expect(names(archive)).toEqual(['Testing', 'Suite', 'Test the testing', 'Edge cases']);
+  });
+
+  it('archives a subtask as a top-level todo', () => {
+    const { server, archive } = setup();
+    archiveTodo(server, archive, 3);
+    expect(names(server)).toEqual(['Testing', 'Suite', 'Be happy']);
+    expect(archive.todos.map(todo => [todo.name, todo.parentId])).toEqual([['Test the testing', null], ['Edge cases', 3]]);
+  });
+
+  it('refuses running work, also inside the subtree', () => {
+    const { server, archive } = setup();
+    startTodo(server, 4, T0);
+    expect(() => archiveTodo(server, archive, 4)).toThrow(/running/);
+    expect(() => archiveTodo(server, archive, 1)).toThrow(/"Edge cases", a subtask of "Testing", is running/);
+    expect(archive.todos).toEqual([]);
   });
 });

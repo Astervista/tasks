@@ -7,6 +7,7 @@ import { StatsDialog } from './dialogs/stats-dialog';
 import { TodoDialog } from './dialogs/todo-dialog';
 import { CheckInDialog } from './dialogs/checkin-dialog';
 import { ProjectDialog } from './dialogs/project-dialog';
+import { ArchiveDialog } from './dialogs/archive-dialog';
 import { ProjectBar } from './projects/project-bar';
 import { ProjectList } from './projects/project-list';
 import { randomClownColor } from './ui/clown';
@@ -23,7 +24,7 @@ import { Modal } from './ui/modal';
 @Component({
   selector: 't-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ProjectList, ProjectBar, TaskList, StatusBar, TodoDialog, ConfirmDialog, StatsDialog, ProjectDialog, CheckInDialog, Modal],
+  imports: [ProjectList, ProjectBar, TaskList, StatusBar, TodoDialog, ConfirmDialog, StatsDialog, ProjectDialog, CheckInDialog, ArchiveDialog, Modal],
   template: `
     @if (store.connection() === 'ready') {
       @if (store.workspace()) {
@@ -31,7 +32,7 @@ import { Modal } from './ui/modal';
         <t-task-list />
         <t-status-bar (openWorkspace)="go($event)" />
       } @else if (!routeUid()) {
-        <t-project-list (open)="go($event)" (create)="dialogs.project.set({ name: $event, description: '', editing: false })" />
+        <t-project-list (open)="go($event)" (create)="dialogs.project.set({ name: $event, description: '', archiveAfterDays: null, editing: false })" />
       }
     }
     <div id="effects"></div>
@@ -66,10 +67,14 @@ import { Modal } from './ui/modal';
     }
     @if (dialogs.project(); as project) {
       <t-project-dialog [initialName]="project.name" [initialDescription]="project.description" [editing]="project.editing"
+                        [initialArchiveAfterDays]="project.archiveAfterDays"
                         [save]="saveProject" [done]="closeProject" />
     }
     @if (dialogs.checkIn(); as request) {
       <t-checkin-dialog [name]="request.todo.name" [initial]="request.initial" [save]="saveCheckIn(request.todo.id)" [done]="closeCheckIn" />
+    }
+    @if (dialogs.archive() && store.workspace()) {
+      <t-archive-dialog [done]="closeArchive" />
     }
     @if (dialogs.stats() && store.workspace()) {
       <t-stats-dialog [done]="closeStats" />
@@ -101,14 +106,15 @@ export class App {
   protected readonly closeTodoDialog = () => this.dialogs.todo.set(null);
   protected readonly closeConfirm = () => this.dialogs.confirm.set(null);
   protected readonly closeStats = () => this.dialogs.stats.set(false);
+  protected readonly closeArchive = () => this.dialogs.archive.set(false);
   protected readonly closeProject = () => this.dialogs.project.set(null);
   protected readonly closeCheckIn = () => this.dialogs.checkIn.set(null);
   protected saveCheckIn(id: number) {
     return (progress: number, note: string) => this.store.checkIn(id, progress, note);
   }
-  protected readonly saveProject = async (name: string, description: string): Promise<boolean> => {
+  protected readonly saveProject = async (name: string, description: string, archiveAfterDays: number | null): Promise<boolean> => {
     if (this.dialogs.project()?.editing) {
-      return this.store.updateWorkspace(name, description);
+      return this.store.updateWorkspace(name, description, archiveAfterDays ?? undefined);
     }
     const uid = await this.store.createWorkspace(name, description);
     if (uid != null) this.go(uid);
@@ -148,7 +154,7 @@ export class App {
   protected editProject(): void {
     const workspace = this.store.workspace();
     if (workspace != null) {
-      this.dialogs.project.set({ name: workspace.name, description: workspace.description, editing: true });
+      this.dialogs.project.set({ name: workspace.name, description: workspace.description, archiveAfterDays: workspace.archiveAfterDays, editing: true });
     }
   }
 

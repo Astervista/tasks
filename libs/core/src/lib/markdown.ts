@@ -9,7 +9,7 @@
  * timezone: Europe/Rome
  * revision: 42
  * nextId: 7
- * archiveAfterDays: 14
+ * archiveAfterDays: 7
  * ---
  * # tasks
  *

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import request from 'supertest';
 import { MutationResult, parseWorkspace, PushFilesResult, statusOf, WorkspaceDocument } from '@tasks/core';
 import { createApp } from './create-app';
+import { WorkspacesService } from './workspaces/workspaces.service';
 
 describe('API', () => {
   let app: INestApplication;
@@ -145,6 +146,41 @@ describe('API', () => {
     const stats = await api().get(`/api/workspaces/${uid}/stats?days=7`).expect(200);
     expect(stats.body.summary.weight).toEqual({ done: 3, total: 3 });
     expect(stats.body.chart.days).toHaveLength(7);
+  });
+
+  it('archives by hand anything not running, archives done work after a week and restores', async () => {
+    const uid = await createWorkspace();
+    const open = await addTodo(uid, { name: 'Someday', weight: 1 });
+    await addTodo(uid, { name: 'Its subtask', weight: 1, parentId: open.id });
+    const running = await addTodo(uid, { name: 'Now', weight: 1 });
+    const done = await addTodo(uid, { name: 'Finished', weight: 1 });
+    await api().patch(`/api/workspaces/${uid}/todos/${running.id}`).send({ status: 'running' }).expect(200);
+    await api().patch(`/api/workspaces/${uid}/todos/${done.id}`).send({ status: 'done' }).expect(200);
+
+    const refused = await api().post(`/api/workspaces/${uid}/todos/${running.id}/archive`).expect(400);
+    expect(refused.body.message).toContain('pause it');
+    const archived = (await api().post(`/api/workspaces/${uid}/todos/${open.id}/archive`).expect(201)).body as MutationResult;
+    expect(archived.workspace.todos.map(todo => todo.name)).toEqual(['Now', 'Finished']);
+    expect(archived.archive.todos.map(todo => todo.name)).toEqual(['Someday', 'Its subtask']);
+    expect(readFileSync(join(dataDir, 'workspaces', uid, 'TODO.archive.md'), 'utf8')).toContain('## Someday');
+
+    // The hourly sweep: nothing is due yet, then a week later the done todo goes
+    const service = app.get(WorkspacesService);
+    await service.archiveDue();
+    expect((await api().get(`/api/workspaces/${uid}`).expect(200)).body.archive.todos).toHaveLength(2);
+    const now = Date.now;
+    Date.now = () => now() + 7 * 24 * 60 * 60 * 1000 + 1000;
+    try {
+      await service.archiveDue();
+    } finally {
+      Date.now = now;
+    }
+    const swept = (await api().get(`/api/workspaces/${uid}`).expect(200)).body as WorkspaceDocument;
+    expect(swept.workspace.todos.map(todo => todo.name)).toEqual(['Now']);
+    expect(swept.archive.todos.map(todo => todo.name)).toEqual(['Someday', 'Its subtask', 'Finished']);
+
+    const restored = (await api().post(`/api/workspaces/${uid}/archive/${open.id}/restore`).expect(201)).body as MutationResult;
+    expect(restored.workspace.todos.map(todo => todo.name)).toEqual(['Now', 'Someday', 'Its subtask']);
   });
 
   it('moves deleted workspaces to the trash', async () => {

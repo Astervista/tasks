@@ -22,24 +22,12 @@ final class CheckInPanel {
             self?.close()
             answer(result)
         }
-        let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 220),
-            styleMask: [.titled, .closable, .nonactivatingPanel, .fullSizeContentView],
-            backing: .buffered, defer: false)
-        panel.title = "Check in"
-        panel.titlebarAppearsTransparent = true
-        panel.level = .floating
-        panel.isFloatingPanel = true
-        panel.hidesOnDeactivate = false
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.contentView = NSHostingView(rootView: view)
-        if let screen = NSScreen.main?.visibleFrame {
-            panel.setFrameOrigin(NSPoint(x: screen.maxX - 440, y: screen.maxY - 240))
-        }
+        let panel = floatingPanel(view)
         panel.orderFrontRegardless()
         self.panel = panel
     }
 
+    /// Closing the panel with its close button is no answer: the grace period still runs
     func close() {
         panel?.close()
         panel = nil
@@ -53,32 +41,35 @@ private struct CheckInView: View {
     let answer: (CheckInAnswer) -> Void
 
     private let steps: [Double] = [0.1, 0.25, 0.5, 0.75, 0.9]
-    private let colors: [Color] = [.red, .orange, .yellow, .teal, .blue, .purple, .pink]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Still working on “\(task)”?").font(.headline)
+            Text("Still working on “\(task)”?")
+                .font(.system(size: 16, weight: .semibold))
+                .fixedSize(horizontal: false, vertical: true)
             Text("\(TasksModel.format(workedMinutes)) so far. How far along is it?")
-                .foregroundStyle(.secondary)
-            HStack(spacing: 6) {
+                .foregroundStyle(Theme.secondary)
+            HStack(spacing: 8) {
                 ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
                     Button("\(Int(step * 100))%") { answer(.progress(step)) }
-                        .buttonStyle(.borderedProminent)
-                        .tint(colors[index % colors.count])
+                        .buttonStyle(ChipButtonStyle(color: Theme.levels[index % Theme.levels.count]))
                 }
             }
-            HStack {
-                Button("Done ✔") { answer(.done) }.tint(.green).buttonStyle(.borderedProminent)
-                Button("Pause") { answer(.pause) }
+            HStack(spacing: 8) {
+                Button("Done") { answer(.done) }.buttonStyle(PillButtonStyle(color: Theme.done, icon: "checkmark"))
+                Button("Pause") { answer(.pause) }.buttonStyle(PillButtonStyle(color: Theme.pause, icon: "pause.fill"))
                 Spacer()
-                Button("Keep going") { answer(.keepGoing) }
+                Button("Keep going") { answer(.keepGoing) }.buttonStyle(PillButtonStyle(color: Theme.primary))
             }
             if let deadline {
-                Text("No answer by \(deadline.formatted(date: .omitted, time: .shortened)) pauses it as of now.")
-                    .font(.footnote).foregroundStyle(.secondary)
+                Text("No answer by \(deadline.formatted(date: .omitted, time: .shortened)) pauses it as of the question.")
+                    .font(.footnote).foregroundStyle(Theme.secondary)
             }
         }
-        .padding(20)
-        .frame(width: 420)
+        .foregroundStyle(.white)
+        .padding(.horizontal, 20)
+        .padding(.top, 4)
+        .padding(.bottom, 18)
+        .frame(width: 420, alignment: .leading)
     }
 }

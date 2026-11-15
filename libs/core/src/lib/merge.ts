@@ -38,13 +38,16 @@ export function mergeWorkspace({ server, archive: serverArchive, local, localMod
   const archive = cloneWorkspace(serverArchive);
   const notes: string[] = [];
   const serverById = new Map(result.todos.map(todo => [todo.id, todo]));
-  const archivedIds = new Set(archive.todos.map(todo => todo.id));
+  const archivedById = new Map(archive.todos.map(todo => [todo.id, todo]));
+  const archivedIds = new Set(archivedById.keys());
   const serverParent = new Map(server.todos.map(todo => [todo.id, todo.parentId]));
 
   // Which local todos were edited by hand, and which ids need a (new) server id
   const edited = new Set<TodoId>();
   const remap = new Map<TodoId, TodoId>();
   const dropped = new Map<TodoId, TodoId | null>(); // dropped id -> its local parent
+  // Archived on the server after the file was written: the file is just behind
+  let archivedSince = 0;
   for (const todo of local.todos) {
     const isNew = todo.id < 0;
     if (isNew || isEditedLocally(todo, local.timezone)) {
@@ -62,6 +65,9 @@ export function mergeWorkspace({ server, archive: serverArchive, local, localMod
       } else {
         dropped.set(todo.id, todo.parentId);
       }
+    } else if (!serverById.has(todo.id) && !edited.has(todo.id) && (archivedById.get(todo.id)!.rev ?? 0) > base) {
+      dropped.set(todo.id, todo.parentId);
+      archivedSince++;
     }
   }
   const mapParent = (parentId: TodoId | null): TodoId | null => {
@@ -85,6 +91,7 @@ export function mergeWorkspace({ server, archive: serverArchive, local, localMod
   }
 
   const localIds = new Set<TodoId>();
+  let restored = 0;
   const sequence: Todo[] = [];
   for (const original of local.todos) {
     if (dropped.has(original.id)) {
@@ -102,6 +109,7 @@ export function mergeWorkspace({ server, archive: serverArchive, local, localMod
     if (current == null) {
       // New todo, a resurrected one, or one brought back from the archive by hand
       if (archivedIds.has(incoming.id)) {
+        restored++;
         archive.todos = archive.todos.filter(todo => todo.id !== incoming.id);
         for (const child of archive.todos) {
           if (child.parentId === incoming.id) {
@@ -156,7 +164,7 @@ export function mergeWorkspace({ server, archive: serverArchive, local, localMod
     return current;
   };
 
-  const pristine = edited.size === 0 && deletedIds.size === 0 && dropped.size === 0;
+  const pristine = edited.size === 0 && deletedIds.size === 0 && dropped.size === archivedSince && restored === 0;
   if (pristine) {
     // The file is just behind: keep the server's order (it may contain reorders the file never saw)
     result.todos = result.todos.filter(todo => !deletedIds.has(todo.id));

@@ -15,6 +15,7 @@ import { WorkspaceStore } from '../services/workspace.store';
         <span class="material-icons status-stats" title="Statistics" (click)="dialogs.stats.set(true)">bar_chart</span>
         <span style="margin-left: 5px">{{ total() }}</span>
         <span class="status-optional" style="margin-left: 5px; color: #AAA">total todos</span>
+        <span class="material-icons status-archive" title="Archive" (click)="dialogs.archive.set(true)">inventory_2</span>
       </span>
       <span id="status-left-int">
         @for (chip of chips(); track chip.icon) {

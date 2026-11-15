@@ -75,6 +75,12 @@ export class WorkspacesController {
     return this.service.resetTimer(uid, id);
   }
 
+  /** Moves a todo that isn't running (with its subtree) to the archive */
+  @Post(':uid/todos/:id/archive')
+  archive(@Param('uid') uid: string, @Param('id', ParseIntPipe) id: number) {
+    return this.service.archive(uid, id);
+  }
+
   /** Brings an archived todo (with its whole archived subtree) back */
   @Post(':uid/archive/:id/restore')
   restore(@Param('uid') uid: string, @Param('id', ParseIntPipe) id: number) {

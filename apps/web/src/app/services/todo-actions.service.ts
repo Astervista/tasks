@@ -79,6 +79,11 @@ export class TodoActions {
     }
   }
 
+  /** Out of the list, into TODO.archive.md; the archive dialog brings it back */
+  archive(todo: Todo): void {
+    void this.store.archive(todo.id);
+  }
+
   delete(todo: Todo): void {
     const workspace = this.store.workspace();
     if (workspace == null) return;

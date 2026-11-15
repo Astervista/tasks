@@ -112,12 +112,12 @@ export class WorkspaceStore {
     }
   }
 
-  /** Renames / describes the open project */
-  async updateWorkspace(name: string, description: string): Promise<boolean> {
+  /** Renames / describes the open project, and sets when its done work is archived */
+  async updateWorkspace(name: string, description: string, archiveAfterDays?: number): Promise<boolean> {
     const uid = this.uid();
     if (uid == null) return false;
     try {
-      this.document.set(await this.api.updateWorkspace(uid, { name, description }));
+      this.document.set(await this.api.updateWorkspace(uid, { name, description, archiveAfterDays }));
       await this.loadWorkspaces();
       return true;
     } catch (error) {
@@ -169,6 +169,10 @@ export class WorkspaceStore {
 
   delete(id: TodoId, mode: DeleteMode): Promise<boolean> {
     return this.mutate(uid => this.api.deleteTodo(uid, id, mode));
+  }
+
+  archive(id: TodoId): Promise<boolean> {
+    return this.mutate(uid => this.api.archive(uid, id));
   }
 
   restore(id: TodoId): Promise<boolean> {

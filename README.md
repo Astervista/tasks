@@ -18,7 +18,7 @@ uid: 9b2e6c1e-4f0a-4c5e-9a57-0d3f2a1b7c44
 timezone: Europe/Rome
 revision: 42
 nextId: 7
-archiveAfterDays: 14
+archiveAfterDays: 7
 ---
 # tasks <!-- rev:3 h:be2bca5f -->
 
@@ -49,7 +49,7 @@ Hand edits are welcome:
 
 **Macrotasks.** A todo with subtasks keeps its own fields (weight, estimate, time, check-ins) for the work on it itself. The UI shows them as an extra, unselectable "⋯" line, first among the subtasks. The macrotask's own line shows the totals of its whole subtree. Weight 0 means no work is expected on the macrotask itself.
 
-The HTML comments hold sync metadata, are invisible when rendered, and should be left alone. Done top-level todos move to `TODO.archive.md` after `archiveAfterDays`.
+The HTML comments hold sync metadata, are invisible when rendered, and should be left alone. Done top-level todos move to `TODO.archive.md` once they have been done for `archiveAfterDays` days (7 by default, set per project in the web app), and any todo that isn't running can be archived by hand; the web app's archive brings them back.
 
 **How sync merges.** No copy is kept besides the server's and the project's:
 - The `h:` hash tells which todos you edited by hand. The `rev:` tells which ones changed on the server since the file was synced.
@@ -110,9 +110,11 @@ What they show:
 - Pause/Resume and Done.
 - "Switch to" across all workspaces and macrotasks.
 - Today's total.
-- A link to the web app.
+- The web app in a small window by the icon, already logged in with the tools' session ("Open web app"; on Windows a click on the icon). "Open in browser" opens it in the browser instead.
 
-To publish a version, write its text in `.github/release-notes/<tag>.md` and push the tag, such as `v2.0.1`. CI builds both apps and attaches them to that tag's release, creating the release if needed.
+While a task runs they ask "how far along?" every 45 minutes (`checkInMinutes` in `~/.config/tasks/config.json`, 0 turns it off); with no answer in 10 minutes (`checkInGraceMinutes`) the task is paused as of the question. When the computer sleeps, shuts down or logs out they pause the running task (`pauseOnSleep: false` turns that off), and when you're back they ask whether to resume it.
+
+To publish a version, write its text in `.github/release-notes/<tag>.md` and push the tag, such as `v2.1.0`. CI builds both apps and attaches them to that tag's release, creating the release if needed.
 
 ## Development
 

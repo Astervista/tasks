@@ -99,6 +99,10 @@ export const LEVEL_COLORS = ['#ff2222', 'orangered', 'orange', 'teal', 'royalblu
         @if (session() != null) {
           <span class="task-line-button button button-reset" (click)="actions.resetTimer(todo)">Reset timer</span>
         }
+        @if (row().status !== 'running') {
+          <span class="task-line-button button button-archive" title="Move it (and its subtasks) to the archive"
+                (click)="actions.archive(todo)">Archive</span>
+        }
         <span class="task-line-button button button-delete" (click)="actions.delete(todo)">Delete</span>
       </div>
     }

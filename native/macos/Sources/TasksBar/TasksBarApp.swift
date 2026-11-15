@@ -15,11 +15,13 @@ final class TasksModel: ObservableObject {
     private var fetchedAt = Date()
     private let panel = CheckInPanel()
     private let loginPanel = LoginPanel()
+    private let resumePanel = ResumePanel()
+    private let webPanel = WebPanel()
     /// When the open check-in question was asked
     private var promptedAt: Date?
     /// Last answer (or "keep going"): the next question comes an interval after it
     private var answeredAt: Date?
-    private var sleptAt: Date?
+    private var offeringResume = false
 
     init() {
         Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -33,35 +35,66 @@ final class TasksModel: ObservableObject {
             Task { @MainActor [weak self] in await self?.willSleep() }
         }
         workspace.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor [weak self] in await self?.didWake() }
+            Task { @MainActor [weak self] in await self?.offerResume() }
         }
+        // Shut down, restart or log out: the app quits right after, so the offer waits for the next start
+        workspace.addObserver(forName: NSWorkspace.willPowerOffNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.willPowerOff() }
+        }
+        webPanel.needsLogin = { [weak self] in self?.logIn() }
         Task { await run() }
     }
 
-    // MARK: Sleep: the hours the computer sleeps are not work
+    // MARK: Sleep and logout: the hours the computer is off are not work, and coming back offers to resume
 
     private var pauseOnSleep: Bool { config?.pauseOnSleep ?? true }
 
-    private func willSleep() async {
-        guard pauseOnSleep, running, let current, let api else { return }
-        sleptAt = Date()
+    /// Remembers what was running, then pauses it as of now
+    private func pauseForSystem(_ reason: String) -> (CurrentTask, Date)? {
+        guard pauseOnSleep, running, let current else { return nil }
+        let at = Date()
+        SystemPause(uid: current.uid, id: current.todo.id, name: current.todo.name,
+                    at: (at.timeIntervalSince1970 * 1000).rounded(), reason: reason).save()
         panel.close()
         promptedAt = nil
-        try? await api.setStatus(uid: current.uid, id: current.todo.id, status: "paused", at: sleptAt)
+        return (current, at)
     }
 
-    /// The pause may not have reached the server before the network went down: make sure it did
-    private func didWake() async {
-        guard let sleptAt else { return }
-        self.sleptAt = nil
-        for _ in 0..<10 {
+    private func willSleep() async {
+        guard let (task, at) = pauseForSystem("sleep"), let api else { return }
+        try? await api.setStatus(uid: task.uid, id: task.todo.id, status: "paused", at: at)
+    }
+
+    private func willPowerOff() {
+        guard let (task, at) = pauseForSystem("power-off"), let api else { return }
+        // Best effort: the next start makes sure the pause reached the server
+        Task { try? await api.setStatus(uid: task.uid, id: task.todo.id, status: "paused", at: at) }
+    }
+
+    /// After waking up or starting: makes sure the pause reached the server (the network may have gone
+    /// down first), then asks whether to resume, unless the task was resumed or replaced in the meantime
+    func offerResume() async {
+        guard !offeringResume, let pause = SystemPause.load() else { return }
+        offeringResume = true
+        defer { offeringResume = false }
+        for attempt in 0..<10 {
             await refresh()
             if problem == nil { break }
+            if attempt == 9 || needsLogin { return } // the marker stays: the next connection tries again
             try? await Task.sleep(nanoseconds: 6_000_000_000)
         }
-        if let current, running, let since = current.todo.runningSince, since <= sleptAt, let api {
-            try? await api.setStatus(uid: current.uid, id: current.todo.id, status: "paused", at: sleptAt)
+        SystemPause.clear()
+        guard let api, let current, current.uid == pause.uid, current.todo.id == pause.id else { return }
+        if running {
+            // Still running from before: the pause never arrived
+            guard let since = current.todo.runningSince, since <= pause.date else { return }
+            try? await api.setStatus(uid: pause.uid, id: pause.id, status: "paused", at: pause.date)
             await refresh()
+        }
+        guard let task = self.current, !running, task.uid == pause.uid, task.todo.id == pause.id else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        resumePanel.show(pause, workspace: task.workspace, workedMinutes: task.minutes) { [weak self] resume in
+            if resume { self?.setStatus("running", uid: pause.uid, id: pause.id) }
         }
     }
 
@@ -142,6 +175,7 @@ final class TasksModel: ObservableObject {
             self.config = config
             let token = Session.load()?.token
             await refresh()
+            if problem == nil { Task { await offerResume() } }
             do {
                 connected = true
                 delay = 1
@@ -171,6 +205,10 @@ final class TasksModel: ObservableObject {
             fetchedAt = Date()
             problem = nil
             needsLogin = false
+            // Resumed (or replaced) from somewhere else: nothing left to offer
+            if let pause = resumePanel.pause, running || current?.uid != pause.uid || current?.todo.id != pause.id {
+                resumePanel.close()
+            }
         } catch {
             report(error)
         }
@@ -184,6 +222,20 @@ final class TasksModel: ObservableObject {
     func logIn() {
         guard let api else { return }
         loginPanel.show(api: api)
+    }
+
+    /// The web app in a popover under the icon; the browser when that isn't possible
+    func openWebApp() {
+        guard let url = api?.webUrl else { return }
+        if needsLogin {
+            logIn()
+        } else if !webPanel.show(url: url) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    func openInBrowser() {
+        if let url = api?.webUrl { NSWorkspace.shared.open(url) }
     }
 
     var running: Bool { current?.running == true }
@@ -317,9 +369,9 @@ struct MenuContent: View {
             Button("Log in…") { model.logIn() }
         }
         Divider()
-        Button("Open web app") {
-            if let url = model.api?.webUrl { NSWorkspace.shared.open(url) }
-        }
+        Button("Open web app") { model.openWebApp() }
+            .keyboardShortcut("o")
+        Button("Open in browser") { model.openInBrowser() }
         Button("Refresh") { Task { await model.refresh() } }
         Toggle("Open at Login", isOn: Binding(get: { loginItem.enabled }, set: { loginItem.set($0) }))
         if let problem = loginItem.problem {

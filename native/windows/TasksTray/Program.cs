@@ -18,7 +18,8 @@ internal static class Program
 
 /// <summary>
 /// Tray icon: green while a task runs, amber when paused, grey when idle or offline. The tooltip shows
-/// the task and its time, double click pauses/resumes, the menu has the controls and "Switch to".
+/// the task and its time, a click opens the web app by the tray, a double click pauses/resumes, the menu
+/// has the controls and "Switch to".
 /// </summary>
 internal sealed class TrayContext : ApplicationContext
 {
@@ -44,61 +45,118 @@ internal sealed class TrayContext : ApplicationContext
     private DateTimeOffset? promptedAt;
     /// <summary>Last answer (or "keep going"): the next question comes an interval after it</summary>
     private DateTimeOffset? answeredAt;
-    private DateTimeOffset? sleptAt;
+    private ResumeForm? resumeForm;
+    private bool offeringResume;
+    private WebForm? webForm;
+    /// <summary>A single click waits to see whether it becomes a double click</summary>
+    private readonly System.Windows.Forms.Timer clickTimer = new() { Interval = SystemInformation.DoubleClickTime };
 
     public TrayContext()
     {
         ui = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
         icon.ContextMenuStrip = menu;
         menu.Opening += (_, _) => BuildMenu();
-        icon.DoubleClick += (_, _) => TogglePause();
+        icon.MouseClick += (_, e) => { if (e.Button == MouseButtons.Left) clickTimer.Start(); };
+        icon.DoubleClick += (_, _) => { clickTimer.Stop(); TogglePause(); };
+        clickTimer.Tick += (_, _) => { clickTimer.Stop(); _ = OpenWebApp(); };
         ticker.Tick += (_, _) => UpdateIcon();
         ticker.Start();
         checkInTimer.Tick += (_, _) => CheckInTick();
         checkInTimer.Start();
         SystemEvents.PowerModeChanged += OnPowerModeChanged;
+        SystemEvents.SessionEnding += OnSessionEnding;
         LoginItem.OfferOnce();
         UpdateIcon();
         _ = Run();
     }
 
-    // Sleep: the hours the computer sleeps are not work -------------------------------------------
+    // Sleep and logoff: the hours the computer is off are not work, and coming back offers to resume ----
 
     private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
     {
-        if (config?.PauseOnSleep == false) return;
-        if (e.Mode == PowerModes.Suspend && Running && current is { } task && api != null)
+        if (e.Mode == PowerModes.Suspend) PauseForSystem("sleep");
+        else if (e.Mode == PowerModes.Resume) _ = OfferResume();
+    }
+
+    /// <summary>Logoff or shutdown: the app closes right after, so the offer waits for the next start</summary>
+    private void OnSessionEnding(object? sender, SessionEndingEventArgs e) =>
+        PauseForSystem(e.Reason == SessionEndReasons.Logoff ? "logoff" : "shutdown");
+
+    /// <summary>Remembers what was running, then pauses it as of now (briefly waiting: the network may go next)</summary>
+    private void PauseForSystem(string reason)
+    {
+        if (config?.PauseOnSleep == false || !Running || current is not { } task || api == null) return;
+        var at = DateTimeOffset.Now;
+        new SystemPause(task.Uid, task.Todo.Id, task.Todo.Name, at.ToUnixTimeMilliseconds(), reason).Save();
+        CloseCheckIn();
+        try { api.SetStatus(task.Uid, task.Todo.Id, "paused", at: at).Wait(TimeSpan.FromSeconds(3)); } catch { }
+    }
+
+    /// <summary>
+    /// After waking up or starting: makes sure the pause reached the server, then asks whether to resume,
+    /// unless the task was resumed or replaced in the meantime
+    /// </summary>
+    private async Task OfferResume()
+    {
+        if (offeringResume || SystemPause.Load() is not { } pause) return;
+        offeringResume = true;
+        try
         {
-            sleptAt = DateTimeOffset.Now;
-            CloseCheckIn();
-            try { api.SetStatus(task.Uid, task.Todo.Id, "paused", at: sleptAt).Wait(TimeSpan.FromSeconds(3)); } catch { }
+            CurrentTask? task = null;
+            for (var attempt = 0; ; attempt++)
+            {
+                if (api == null) return;
+                try
+                {
+                    task = await api.Current();
+                    break;
+                }
+                catch (ApiException error) when (error.Error.IsNotLoggedIn)
+                {
+                    return; // the marker stays: the next connection tries again
+                }
+                catch
+                {
+                    if (attempt == 9) return;
+                    await Task.Delay(TimeSpan.FromSeconds(6));
+                }
+            }
+            SystemPause.Clear();
+            if (task == null || task.Uid != pause.Uid || task.Todo.Id != pause.Id) return;
+            if (task.Running)
+            {
+                // Still running from before: the pause never arrived
+                if (task.Todo.RunningSince is not { } since || since > pause.Date) return;
+                try { await api.SetStatus(pause.Uid, pause.Id, "paused", at: pause.Date); } catch { return; }
+                task = await api.Current();
+                if (task is not { Running: false } || task.Uid != pause.Uid || task.Todo.Id != pause.Id) return;
+            }
+            await Refresh();
+            ShowResume(pause, task);
         }
-        else if (e.Mode == PowerModes.Resume && sleptAt is { } slept)
+        finally
         {
-            sleptAt = null;
-            _ = EnsurePausedAfterSleep(slept);
+            offeringResume = false;
         }
     }
 
-    /// <summary>The pause may not have reached the server before the network went down: make sure it did</summary>
-    private async Task EnsurePausedAfterSleep(DateTimeOffset slept)
+    private void ShowResume(SystemPause pause, CurrentTask task)
     {
-        for (var attempt = 0; attempt < 10; attempt++)
+        CloseResume();
+        resumeForm = new ResumeForm(pause, task.Workspace, Format(task.Minutes), resume =>
         {
-            if (api == null) return;
-            try
-            {
-                var task = await api.Current();
-                if (task is { Running: true } && task.Todo.RunningSince is { } since && since <= slept)
-                    await api.SetStatus(task.Uid, task.Todo.Id, "paused", at: slept);
-                await Refresh();
-                return;
-            }
-            catch
-            {
-                await Task.Delay(TimeSpan.FromSeconds(6));
-            }
-        }
+            resumeForm = null;
+            if (resume) SetStatus(pause.Uid, pause.Id, "running");
+        });
+        resumeForm.Show();
+        resumeForm.Activate();
+    }
+
+    private void CloseResume()
+    {
+        var form = resumeForm;
+        resumeForm = null;
+        if (form is { IsDisposed: false }) form.Close();
     }
 
     // Check-ins: "how far along?" while a task runs, so none is left running forgotten -------------
@@ -203,6 +261,7 @@ internal sealed class TrayContext : ApplicationContext
             api = new Api(config);
             var token = Session.Load()?.Token;
             await Refresh();
+            _ = OfferResume();
             try
             {
                 connected = true;
@@ -242,6 +301,9 @@ internal sealed class TrayContext : ApplicationContext
                 fetchedAt = DateTimeOffset.Now;
                 problem = null;
                 needsLogin = false;
+                // Resumed (or replaced) from somewhere else: nothing left to offer
+                if (resumeForm?.Pause is { } pause && (current is not { Running: false } task || task.Uid != pause.Uid || task.Todo.Id != pause.Id))
+                    CloseResume();
                 UpdateIcon();
             });
         }
@@ -268,6 +330,28 @@ internal sealed class TrayContext : ApplicationContext
         loginForm = new LoginForm(api);
         loginForm.FormClosed += (_, _) => loginForm = null;
         loginForm.Show();
+    }
+
+    /// <summary>The web app by the tray; the browser when WebView2 isn't available</summary>
+    private async Task OpenWebApp()
+    {
+        if (api == null) return;
+        if (needsLogin)
+        {
+            LogIn();
+            return;
+        }
+        if (webForm == null)
+        {
+            webForm = new WebForm();
+            webForm.NeedsLogin += LogIn;
+        }
+        if (!await webForm.Open(api.WebUrl)) OpenInBrowser();
+    }
+
+    private void OpenInBrowser()
+    {
+        if (api != null) Process.Start(new ProcessStartInfo(api.WebUrl.ToString()) { UseShellExecute = true });
     }
 
     private void Post(Action action) => ui.Post(_ => action(), null);
@@ -348,10 +432,8 @@ internal sealed class TrayContext : ApplicationContext
             menu.Items.Add(new ToolStripMenuItem($"⚠ {problem ?? "Offline"}") { Enabled = false });
         if (needsLogin) menu.Items.Add("Log in…", null, (_, _) => LogIn());
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Open web app", null, (_, _) =>
-        {
-            if (api != null) Process.Start(new ProcessStartInfo(api.WebUrl.ToString()) { UseShellExecute = true });
-        });
+        menu.Items.Add("Open web app", null, (_, _) => _ = OpenWebApp());
+        menu.Items.Add("Open in browser", null, (_, _) => OpenInBrowser());
         menu.Items.Add("Refresh", null, (_, _) => _ = Refresh());
         menu.Items.Add(new ToolStripMenuItem("Start with Windows", null, (_, _) => LoginItem.Set(!LoginItem.Enabled)) { Checked = LoginItem.Enabled });
         menu.Items.Add("Quit", null, (_, _) => Quit());
@@ -426,7 +508,10 @@ internal sealed class TrayContext : ApplicationContext
     private void Quit()
     {
         SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+        SystemEvents.SessionEnding -= OnSessionEnding;
         CloseCheckIn();
+        CloseResume();
+        webForm?.Dispose();
         stop.Cancel();
         icon.Visible = false;
         ExitThread();

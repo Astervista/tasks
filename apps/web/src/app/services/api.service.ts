@@ -68,6 +68,10 @@ export class ApiService {
     return firstValueFrom(this.http.delete<MutationResult>(`${this.base}/workspaces/${uid}/todos/${id}/timer`));
   }
 
+  archive(uid: string, id: TodoId): Promise<MutationResult> {
+    return firstValueFrom(this.http.post<MutationResult>(`${this.base}/workspaces/${uid}/todos/${id}/archive`, {}));
+  }
+
   restore(uid: string, id: TodoId): Promise<MutationResult> {
     return firstValueFrom(this.http.post<MutationResult>(`${this.base}/workspaces/${uid}/archive/${id}/restore`, {}));
   }

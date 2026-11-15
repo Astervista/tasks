@@ -14,9 +14,10 @@ export class DialogService {
   readonly todo = signal<TodoDialogRequest | null>(null);
   readonly confirm = signal<ConfirmData | null>(null);
   readonly stats = signal(false);
+  readonly archive = signal(false);
   readonly checkIn = signal<{ todo: Todo; initial: number | null } | null>(null);
   /** Create (no uid) or edit the open project */
-  readonly project = signal<{ name: string; description: string; editing: boolean } | null>(null);
+  readonly project = signal<{ name: string; description: string; archiveAfterDays: number | null; editing: boolean } | null>(null);
 
   ask(data: ConfirmData): void {
     this.confirm.set(data);

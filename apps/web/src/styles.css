@@ -222,6 +222,14 @@ select.browser-default.dark-select:focus {
   color: gold;
   margin-left: 5px;
 }
+.status-archive {
+  cursor: pointer;
+  color: #AAA;
+  margin-left: 12px;
+}
+.status-archive:hover {
+  color: white;
+}
 .status-elsewhere {
   cursor: pointer;
   text-decoration: underline dotted;
@@ -442,6 +450,56 @@ t-project-bar {
   content: "flag";
   margin: 10px;
 }
+/* Archive */
+.button-archive {
+  background-color: slategray;
+}
+.button-archive:before {
+  font-family: "Material Icons";
+  text-transform: none;
+  content: "inventory_2";
+  margin: 10px;
+}
+.archive-note {
+  color: #AAA;
+}
+.archive-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #444;
+}
+.archive-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.archive-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.archive-meta {
+  color: #AAA;
+  font-size: 13px;
+}
+.archive-empty {
+  color: #AAA;
+  font-style: italic;
+}
+.button-restore {
+  flex: 0 0 auto;
+  background-color: cornflowerblue;
+  font-size: 13px;
+  padding: 5px 16px;
+  min-width: 0;
+}
+.button-restore.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
 .checkin-steps {
   margin: 10px 0;
 }
@@ -530,7 +588,8 @@ t-project-bar {
 .task-line-buttons .button-subtask { order: 4; }
 .task-line-buttons .button-edit { order: 5; }
 .task-line-buttons .button-reset { order: 6; }
-.task-line-buttons .button-delete { order: 7; }
+.task-line-buttons .button-archive { order: 7; }
+.task-line-buttons .button-delete { order: 8; }
 
 /* Timeline view: the same rows, with a lane on one stretched, scrollable axis instead of the columns */
 .timeline-head {

@@ -3,7 +3,8 @@ import { DayKey, Millis } from './time';
 /** Markdown heading levels ## … ###### */
 export const MAX_DEPTH = 5;
 
-export const DEFAULT_ARCHIVE_AFTER_DAYS = 14;
+/** Done top-level todos move to the archive a week after completion */
+export const DEFAULT_ARCHIVE_AFTER_DAYS = 7;
 
 export type TodoId = number;
 

@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 import {
   addTodo,
   ancestorsOf,
   archiveDone,
+  archiveTodo,
+  dueForArchive,
   CoreError,
   CreateTodoRequest,
   CreateWorkspaceRequest,
@@ -59,14 +61,42 @@ import {
 import { EventsService } from '../events/events.service';
 import { StoredWorkspace, WorkspaceRepository } from '../storage/workspace.repository';
 
+/** How often done work is checked for archiving, besides on every change */
+const ARCHIVE_SWEEP_MS = 60 * 60 * 1000;
+
 @Injectable()
-export class WorkspacesService {
+export class WorkspacesService implements OnApplicationBootstrap, OnApplicationShutdown {
   private lastCurrent = '';
+  private sweep?: ReturnType<typeof setInterval>;
+  private readonly logger = new Logger(WorkspacesService.name);
 
   constructor(
     private readonly repository: WorkspaceRepository,
     private readonly events: EventsService,
   ) {}
+
+  onApplicationBootstrap(): void {
+    // Done work leaves on time even in a project nobody touches
+    const run = () => this.archiveDue().catch(error => this.logger.error(`Archiving failed: ${error}`));
+    void run();
+    this.sweep = setInterval(run, ARCHIVE_SWEEP_MS);
+    this.sweep.unref?.();
+  }
+
+  onApplicationShutdown(): void {
+    clearInterval(this.sweep);
+  }
+
+  /** Archives the done work that is due in every project */
+  async archiveDue(): Promise<void> {
+    const now = Date.now();
+    for (const uid of await this.repository.listUids()) {
+      const stored = await this.repository.find(uid);
+      if (stored != null && dueForArchive(stored.workspace, now).length > 0) {
+        await this.mutate(uid, () => undefined);
+      }
+    }
+  }
 
   // ---------------------------------------------------------------------------------------------
   // Workspaces
@@ -186,6 +216,11 @@ export class WorkspacesService {
 
   async deleteTodo(uid: string, id: TodoId, mode: DeleteMode): Promise<MutationResult> {
     return this.mutate(uid, (workspace, now) => deleteTodo(workspace, id, mode, now));
+  }
+
+  /** Archives a todo that isn't running, done or not, with its subtree */
+  async archive(uid: string, id: TodoId): Promise<MutationResult> {
+    return this.mutate(uid, (workspace, _now, archive) => archiveTodo(workspace, archive, id));
   }
 
   async restore(uid: string, id: TodoId): Promise<MutationResult> {
