@@ -20,7 +20,7 @@ cat > "$APP/Contents/Info.plist" <<'EOF'
   <key>CFBundleIdentifier</key><string>com.tasks.bar</string>
   <key>CFBundleExecutable</key><string>TasksBar</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>3.0.0</string>
+  <key>CFBundleShortVersionString</key><string>3.1.0</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSUIElement</key><true/>
   <key>NSAppTransportSecurity</key>
