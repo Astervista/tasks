@@ -1,11 +1,11 @@
 import { existsSync, promises as fs } from 'node:fs';
-import { basename, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
-import { parseWorkspace, serializeWorkspace } from '@tasks/core';
+import { parseWorkspace } from '@tasks/core';
 import { Client, NOT_LOGGED_IN, RemoteError } from './client';
 import { clearSession, readConfig, readSession, uidForPath, updateConfig } from './config';
 import { login, loginSite } from './login';
-import { localState, readUid, syncProject, SyncOutcome, todoPath, TODO_FILE, writeAtomic } from './project';
+import { ARCHIVE_FILE, localState, readUid, syncProject, SyncOutcome, todoPath, TODO_FILE, writeFiles } from './project';
 
 export async function remoteSet(url: string): Promise<void> {
   const remote = url.replace(/\/+$/, '');
@@ -58,9 +58,10 @@ function localTimezone(): string {
 
 /**
  * Links the current folder to a workspace on the remote, like `git init` + `git remote add`:
- * - already registered here: nothing to do
+ * - already registered here, and the remote has it: nothing to do
  * - TODO.md of a workspace the remote knows (new machine, moved folder): just register it
- * - TODO.md of a workspace the remote does not know: refuse, unless --new (re-creates it from the file)
+ * - TODO.md of a workspace the remote does not know, or not for this user: make a new one from the
+ *   folder's files, keeping ids, history and archive (asks first; --new doesn't)
  * - no TODO.md: create a workspace and write the file
  */
 export async function init(
@@ -74,11 +75,12 @@ export async function init(
   const fileUid = await readUid(dir);
 
   if (fileUid != null) {
-    if (config.projects[fileUid] != null && resolve(config.projects[fileUid]) === dir) {
+    const known = (await client.findWorkspace(fileUid)) != null;
+    if (known && config.projects[fileUid] != null && resolve(config.projects[fileUid]) === dir) {
       console.log(`Already registered: ${dir} -> workspace ${fileUid}`);
       return;
     }
-    if ((await client.findWorkspace(fileUid)) != null) {
+    if (known) {
       const previous = config.projects[fileUid];
       register(fileUid, dir);
       if (previous != null) {
@@ -89,8 +91,12 @@ export async function init(
       return;
     }
     if (!createNew) {
-      throw new Error(`${TODO_FILE} belongs to workspace ${fileUid}, which ${config.remote} does not know.\n`
-        + 'Run "tasks init --new" to create a new workspace from this file.');
+      const question = `${TODO_FILE} belongs to workspace ${fileUid}, which ${config.remote} doesn't have for this account.\n`
+        + 'Make a new project from this folder\'s files (todos, time and archive are kept)? [Y/n]';
+      if (!process.stdin.isTTY || !/^(y(es)?)?$/i.test(await ask(question, ''))) {
+        throw new Error(`${TODO_FILE} belongs to workspace ${fileUid}, which ${config.remote} doesn't have for this account.\n`
+          + 'Run "tasks init --new" to make a new project from this folder\'s files.');
+      }
     }
   } else {
     const otherUid = uidForPath(config, dir);
@@ -106,32 +112,26 @@ export async function init(
   // A new workspace needs a name (only the uid identifies it) and a description
   const name = options.name ?? (await ask('Project name', existing?.name ?? basename(dir)));
   const description = options.description ?? (await ask('Description', existing?.description ?? ''));
+  // The server makes it from the folder's files, which keep their ids, time and archive
   const created = await client.createWorkspace({
     name,
     description,
     timezone: existing?.timezone ?? localTimezone(),
+    ...(existing == null ? {} : {
+      todo: await fs.readFile(todoPath(dir), 'utf8'),
+      archive: await fs.readFile(join(dir, ARCHIVE_FILE), 'utf8').catch(() => undefined),
+    }),
   });
   const uid = created.workspace.uid;
-  if (existing != null && existing.todos.length > 0) {
-    // Re-create from the file: every todo is new to this workspace, so ids are dropped (kept as structure)
-    const ids = new Map(existing.todos.map((todo, index) => [todo.id, -(index + 1)]));
-    const fresh = {
-      ...existing,
-      uid,
-      revision: 0,
-      todos: existing.todos.map(todo => ({
-        ...todo,
-        id: ids.get(todo.id) as number,
-        parentId: todo.parentId == null ? null : (ids.get(todo.parentId) ?? null),
-        rev: null,
-        hash: null,
-      })),
-    };
-    await writeAtomic(todoPath(dir), serializeWorkspace(fresh));
-  } else {
-    await fs.rm(todoPath(dir), { force: true });
-  }
-  register(uid, dir);
+  const files = await client.files(uid);
+  await writeFiles(dir, files.todo, files.archive);
+  updateConfig(next => {
+    // The workspace the folder was linked to is gone for this account: only the new one is synced
+    if (fileUid != null && next.projects[fileUid] != null && resolve(next.projects[fileUid]) === dir) {
+      delete next.projects[fileUid];
+    }
+    next.projects[uid] = dir;
+  });
   report(dir, await syncProject(client, uid, dir));
   console.log(`Created workspace "${created.workspace.name}" (${uid}) for ${dir}`);
 }
@@ -194,7 +194,7 @@ export async function status(): Promise<void> {
     if (!existsSync(dir)) state = 'folder missing';
     else if (!local.exists) state = `no ${TODO_FILE} (will be downloaded)`;
     else if (remote == null) state = 'remote unreachable';
-    else if (server == null) state = 'workspace deleted on the remote';
+    else if (server == null) state = 'not on the remote for this account: run "tasks init" there to register it again';
     else if (local.editedTodos > 0) state = `${local.editedTodos} todo(s) edited locally`;
     else if (server.revision > local.revision) state = `behind (${local.revision} -> ${server.revision})`;
     else state = 'up to date';

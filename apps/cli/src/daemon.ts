@@ -22,6 +22,8 @@ interface Watched {
   again: boolean;
   /** Hash of the TODO.md content we wrote last, to ignore our own writes */
   ownHash: string;
+  /** The last failure logged, so a lasting one (like a project to register again) isn't logged every few minutes */
+  lastError: string;
 }
 
 function log(message: string): void {
@@ -92,12 +94,15 @@ export async function runDaemon(): Promise<void> {
     project.running = true;
     try {
       const outcome = await syncProject(client, project.uid, project.dir);
+      project.lastError = '';
       project.ownHash = outcome.writtenHash || project.ownHash;
       if (outcome.pushed || outcome.pulled || outcome.notes.length > 0 || outcome.issues.length > 0) {
         report(project.dir, outcome);
       }
     } catch (error) {
-      log(`✗ ${project.dir}: ${(error as Error).message}`);
+      const message = (error as Error).message;
+      if (message !== project.lastError) log(`✗ ${project.dir}: ${message}`);
+      project.lastError = message;
     } finally {
       project.running = false;
       if (project.again) {
@@ -137,7 +142,7 @@ export async function runDaemon(): Promise<void> {
     }
     for (const [uid, dir] of Object.entries(config.projects)) {
       if (projects.has(uid)) continue;
-      const project: Watched = { uid, dir, watcher: null, timer: null, running: false, again: false, ownHash: '' };
+      const project: Watched = { uid, dir, watcher: null, timer: null, running: false, again: false, ownHash: '', lastError: '' };
       try {
         // Watch the folder, not the file: atomic saves replace the file and would orphan a file watcher
         project.watcher = watch(dir, (_event, filename) => onFileEvent(project, filename?.toString() ?? null));

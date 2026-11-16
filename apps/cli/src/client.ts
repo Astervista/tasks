@@ -33,6 +33,11 @@ function notLoggedIn(): RemoteError {
   return new RemoteError(NOT_LOGGED_IN, 'Not logged in, or the session ended. Run: tasks login');
 }
 
+/** The server itself refuses a session the login service doesn't vouch for, or one without the tasks permission */
+function refused(): RemoteError {
+  return new RemoteError(NOT_LOGGED_IN, 'Not logged in, or this account may not use tasks. Run: tasks login');
+}
+
 /** Read for every request: a login from another tool or terminal counts right away */
 function sessionHeaders(): Record<string, string> {
   const session = readSession();
@@ -72,6 +77,9 @@ export class Client {
     }
     if (isRedirect(response)) {
       throw notLoggedIn();
+    }
+    if (response.status === NOT_LOGGED_IN) {
+      throw refused();
     }
     if (!response.ok) {
       const error = (await response.json().catch(() => null)) as ApiError | null;
@@ -137,6 +145,9 @@ export class Client {
         });
         if (isRedirect(response)) {
           throw notLoggedIn();
+        }
+        if (response.status === NOT_LOGGED_IN) {
+          throw refused();
         }
         if (!response.ok || response.body == null) {
           throw new RemoteError(response.status, `Event stream refused with ${response.status}`);

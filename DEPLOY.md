@@ -27,9 +27,12 @@ The defaults in `.env` fit this setup:
 |---|---|
 | `PROXY_NETWORK` | `proxy_network`, the network your reverse proxy is on. The server joins it and publishes no port, so only containers on that network reach it |
 | `DATA_PATH` | `./data` (the folder you just made); any other path works too |
+| `AUTH_URL` | `http://astervista-auth-backend:1000/permission`, the login service's permission check. The server asks it who each request's user is (see step 3) |
+| `AUTH_PERMISSION` | `tasks`, the permission a user needs to use tasks |
 
-`data/` holds one folder per project with plain `TODO.md` / `TODO.archive.md` files. Back it up like any
-folder. It is git-ignored, so `git pull` never touches it.
+`data/` holds one folder per user (`data/users/<user id>/workspaces/<uid>/`), and in it one folder per
+project with plain `TODO.md` / `TODO.archive.md` files. Back it up like any folder. It is git-ignored,
+so `git pull` never touches it.
 
 ## 2. Start
 
@@ -45,7 +48,7 @@ your other projects; trimming only makes their next build slower.
 On the network the server is `http://tasks-server:8080`. To check from the host, without a port:
 
 ```sh
-docker compose exec tasks node -e "fetch('http://127.0.0.1:8080/api/current').then(r => console.log(r.status))"
+docker compose exec tasks node -e "fetch('http://127.0.0.1:8080/api/health').then(r => console.log(r.status))"
 # 200: up
 ```
 
@@ -55,7 +58,9 @@ distributions).
 
 ## 3. Reverse proxy and login
 
-**The server does no authentication of its own.** The login service in front of it decides who gets in, so the proxy host must have the block below, and nothing else may be able to reach the server. Any other container on `proxy_network` can reach it directly, so only keep containers you trust on that network.
+**The login service decides who gets in, twice.** nginx asks it before letting a request through, with the block below. Then the server asks it again itself, over `proxy_network` (`AUTH_URL`), with the request's session cookie and the `tasks` permission. The login service answers with the user's id, and the server only ever shows that user their own projects. A request can't claim to be someone else: the server trusts nothing the request says about its user. The login service must be a version that answers `X-Permission` (with `X-Auth-User-Id`), and its backend must be on `proxy_network` as `astervista-auth-backend`. If it has another name, set `AUTH_URL` in `.env`.
+
+Only keep containers you trust on `proxy_network`: they can reach the server without going through nginx. They still can't see anyone's projects without a session cookie that the login service accepts.
 
 Point a proxy host on `proxy_network` at `http://tasks-server:8080`, with TLS and Force SSL, and put this under **Advanced** (in Nginx Proxy Manager, the **Custom Nginx Configuration** tab):
 
@@ -141,6 +146,17 @@ Do it in this order. **The nginx block comes first:** the old block lets through
 3. Deploy the server (see Updating) and delete `TASKS_TOKEN` and `AUTH_MODE` from `.env`.
 4. On each computer, update the CLI and the tray app, restart them, and run `tasks login`. The old token is removed from `config.json`.
 
+## Moving to separate users (3.0)
+
+From 3.0 each user has their own projects, and starting a task only pauses that user's other tasks. The projects from before belong to nobody: they stay in `data/workspaces/`, untouched, and nobody sees them. Each person registers their project folders again.
+
+1. Update the login service to the version that answers `X-Permission`, and check its backend is on `proxy_network`.
+2. Deploy the server (see Updating). Its log says how many old projects nobody owns.
+3. On each computer, update the CLI and run `tasks init` in each project folder. It offers to make a new project from the folder's files, keeping their todos, ids, time and archive, and switches the folder over to it. `tasks status` lists the folders still to do.
+4. Projects that only lived on the server (never cloned to a folder) are still in `data/workspaces/<uid>/`. To keep one, copy its `TODO.md` and `TODO.archive.md` into an empty folder and run `tasks init` there.
+
+When everyone has moved, `data/workspaces/` can go.
+
 ## Updating
 
 ```sh
@@ -158,4 +174,4 @@ Stop with `docker compose down`, move the folder (or change `DATA_PATH` in `.env
 
 `docker network create proxy_network` once, then add
 `COMPOSE_FILE=docker-compose.yml:docker-compose.local.yml` to `.env`: the server is also published on
-`127.0.0.1:8080`, with no login at all.
+`127.0.0.1:8080`, with no login at all: every request is the user `local`.

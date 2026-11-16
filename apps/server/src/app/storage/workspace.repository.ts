@@ -22,10 +22,16 @@ export interface StoredWorkspace {
 }
 
 const UID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/** User ids come from the login service; this keeps them safe as folder names */
+const OWNER_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 
 /**
- * Workspaces on disk: <dataDir>/workspaces/<uid>/TODO.md and TODO.archive.md, the very same format as
- * the copies in the projects. Writes are atomic (temp file + rename) and serialized per workspace.
+ * Workspaces on disk: <dataDir>/users/<user id>/workspaces/<uid>/TODO.md and TODO.archive.md, the very
+ * same format as the copies in the projects. Each user only ever reaches their own folder. Writes are
+ * atomic (temp file + rename) and serialized per workspace.
+ *
+ * <dataDir>/workspaces/ holds the projects from before there were users: they belong to nobody, and
+ * nothing reads them.
  */
 @Injectable()
 export class WorkspaceRepository {
@@ -35,55 +41,77 @@ export class WorkspaceRepository {
 
   constructor(@Inject(APP_CONFIG) private readonly config: AppConfig) {}
 
-  private get root(): string {
-    return join(this.config.dataDir, 'workspaces');
+  private get users(): string {
+    return join(this.config.dataDir, 'users');
   }
 
-  private dir(uid: string): string {
+  private userDir(owner: string): string {
+    if (!WorkspaceRepository.isOwner(owner)) {
+      throw new Error(`Invalid user id ${owner}`);
+    }
+    return join(this.users, owner);
+  }
+
+  private root(owner: string): string {
+    return join(this.userDir(owner), 'workspaces');
+  }
+
+  private dir(owner: string, uid: string): string {
     if (!UID_PATTERN.test(uid)) {
       throw new Error(`Invalid workspace uid ${uid}`);
     }
-    return join(this.root, uid);
+    return join(this.root(owner), uid);
+  }
+
+  private key(owner: string, uid: string): string {
+    return `${owner}/${uid}`;
   }
 
   static isUid(uid: string): boolean {
     return UID_PATTERN.test(uid);
   }
 
+  static isOwner(owner: string): boolean {
+    return OWNER_PATTERN.test(owner);
+  }
+
+  /** Every user with a folder */
+  async listOwners(): Promise<string[]> {
+    return (await subfolders(this.users)).filter(name => OWNER_PATTERN.test(name));
+  }
+
+  /** Projects from before there were users, which nobody owns */
+  async listUnowned(): Promise<string[]> {
+    return (await subfolders(join(this.config.dataDir, 'workspaces'))).filter(name => UID_PATTERN.test(name));
+  }
+
   newUid(): string {
     return randomUUID();
   }
 
-  async listUids(): Promise<string[]> {
-    try {
-      const entries = await fs.readdir(this.root, { withFileTypes: true });
-      return entries.filter(entry => entry.isDirectory() && UID_PATTERN.test(entry.name)).map(entry => entry.name);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        return [];
-      }
-      throw error;
-    }
+  async listUids(owner: string): Promise<string[]> {
+    return (await subfolders(this.root(owner))).filter(name => UID_PATTERN.test(name));
   }
 
-  /** A copy that callers may mutate freely */
-  async find(uid: string): Promise<StoredWorkspace | null> {
+  /** A copy that callers may mutate freely; null for a workspace this user doesn't have */
+  async find(owner: string, uid: string): Promise<StoredWorkspace | null> {
     if (!WorkspaceRepository.isUid(uid)) {
       return null;
     }
-    let stored = this.cache.get(uid);
+    const key = this.key(owner, uid);
+    let stored = this.cache.get(key);
     if (stored == null) {
-      stored = (await this.load(uid)) ?? undefined;
+      stored = (await this.load(owner, uid)) ?? undefined;
       if (stored == null) {
         return null;
       }
-      this.cache.set(uid, stored);
+      this.cache.set(key, stored);
     }
     return { workspace: cloneWorkspace(stored.workspace), archive: cloneWorkspace(stored.archive), modified: stored.modified };
   }
 
-  private async load(uid: string): Promise<StoredWorkspace | null> {
-    const dir = this.dir(uid);
+  private async load(owner: string, uid: string): Promise<StoredWorkspace | null> {
+    const dir = this.dir(owner, uid);
     let text: string;
     let modified: number;
     try {
@@ -112,43 +140,44 @@ export class WorkspaceRepository {
     return { workspace, archive, modified };
   }
 
-  async save(workspace: Workspace, archive: Workspace): Promise<StoredWorkspace> {
-    const dir = this.dir(workspace.uid);
+  async save(owner: string, workspace: Workspace, archive: Workspace): Promise<StoredWorkspace> {
+    const dir = this.dir(owner, workspace.uid);
     await fs.mkdir(dir, { recursive: true });
     const archiveCopy = { ...archive, uid: workspace.uid, name: archiveName(workspace.name), description: '', timezone: workspace.timezone };
     await writeAtomic(join(dir, ARCHIVE_FILE), serializeWorkspace(archiveCopy));
     await writeAtomic(join(dir, TODO_FILE), serializeWorkspace(workspace));
     const stored = { workspace: cloneWorkspace(workspace), archive: cloneWorkspace(archiveCopy), modified: Date.now() };
-    this.cache.set(workspace.uid, stored);
+    this.cache.set(this.key(owner, workspace.uid), stored);
     return { workspace: cloneWorkspace(workspace), archive: cloneWorkspace(archiveCopy), modified: stored.modified };
   }
 
-  async files(uid: string): Promise<{ todo: string; archive: string } | null> {
-    const stored = await this.find(uid);
+  async files(owner: string, uid: string): Promise<{ todo: string; archive: string } | null> {
+    const stored = await this.find(owner, uid);
     if (stored == null) {
       return null;
     }
     return { todo: serializeWorkspace(stored.workspace), archive: serializeWorkspace(stored.archive) };
   }
 
-  /** Deleted workspaces are moved to <dataDir>/trash, never destroyed */
-  async remove(uid: string): Promise<void> {
-    const trash = join(this.config.dataDir, 'trash');
+  /** Deleted workspaces are moved to the user's trash folder, never destroyed */
+  async remove(owner: string, uid: string): Promise<void> {
+    const trash = join(this.userDir(owner), 'trash');
     await fs.mkdir(trash, { recursive: true });
-    await fs.rename(this.dir(uid), join(trash, `${uid}-${Date.now()}`));
-    this.cache.delete(uid);
+    await fs.rename(this.dir(owner, uid), join(trash, `${uid}-${Date.now()}`));
+    this.cache.delete(this.key(owner, uid));
   }
 
   /** Runs `task` exclusively for this workspace */
-  async withLock<T>(uid: string, task: () => Promise<T>): Promise<T> {
-    const previous = this.locks.get(uid) ?? Promise.resolve();
+  async withLock<T>(owner: string, uid: string, task: () => Promise<T>): Promise<T> {
+    const key = this.key(owner, uid);
+    const previous = this.locks.get(key) ?? Promise.resolve();
     const run = previous.catch(() => undefined).then(task);
-    this.locks.set(uid, run);
+    this.locks.set(key, run);
     try {
       return await run;
     } finally {
-      if (this.locks.get(uid) === run) {
-        this.locks.delete(uid);
+      if (this.locks.get(key) === run) {
+        this.locks.delete(key);
       }
     }
   }
@@ -158,4 +187,16 @@ async function writeAtomic(file: string, content: string): Promise<void> {
   const temp = `${file}.${process.pid}.${Date.now()}.tmp`;
   await fs.writeFile(temp, content, 'utf8');
   await fs.rename(temp, file);
+}
+
+async function subfolders(dir: string): Promise<string[]> {
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    return entries.filter(entry => entry.isDirectory()).map(entry => entry.name);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return [];
+    }
+    throw error;
+  }
 }

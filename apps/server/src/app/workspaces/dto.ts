@@ -30,6 +30,8 @@ export class CreateWorkspaceDto implements CreateWorkspaceRequest {
   @IsString() @IsNotEmpty() @MaxLength(200) name!: string;
   @IsOptional() @IsString() @MaxLength(20_000) description?: string;
   @IsString() @IsNotEmpty() timezone!: string;
+  @IsOptional() @IsString() todo?: string;
+  @IsOptional() @IsString() archive?: string;
 }
 
 export class UpdateWorkspaceDto implements UpdateWorkspaceRequest {

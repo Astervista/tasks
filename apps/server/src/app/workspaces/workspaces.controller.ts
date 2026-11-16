@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseIntPipe, Patch, Post, Put, Query } from '@nestjs/common';
+import { User } from '../identity/identity.middleware';
 import { WorkspacesService } from './workspaces.service';
 import {
   CheckInDto,
@@ -16,86 +17,86 @@ export class WorkspacesController {
   constructor(private readonly service: WorkspacesService) {}
 
   @Get()
-  list() {
-    return this.service.list();
+  list(@User() user: string) {
+    return this.service.list(user);
   }
 
   @Post()
-  create(@Body() body: CreateWorkspaceDto) {
-    return this.service.create(body);
+  create(@User() user: string, @Body() body: CreateWorkspaceDto) {
+    return this.service.create(user, body);
   }
 
   @Get(':uid')
-  get(@Param('uid') uid: string) {
-    return this.service.get(uid);
+  get(@User() user: string, @Param('uid') uid: string) {
+    return this.service.get(user, uid);
   }
 
   @Patch(':uid')
-  update(@Param('uid') uid: string, @Body() body: UpdateWorkspaceDto) {
-    return this.service.update(uid, body);
+  update(@User() user: string, @Param('uid') uid: string, @Body() body: UpdateWorkspaceDto) {
+    return this.service.update(user, uid, body);
   }
 
   @Delete(':uid')
   @HttpCode(204)
-  remove(@Param('uid') uid: string) {
-    return this.service.remove(uid);
+  remove(@User() user: string, @Param('uid') uid: string) {
+    return this.service.remove(user, uid);
   }
 
   @Get(':uid/stats')
-  stats(@Param('uid') uid: string, @Query() query: StatsQueryDto) {
-    return this.service.stats(uid, Math.min(query.days ?? 14, 366), query.parent ?? null);
+  stats(@User() user: string, @Param('uid') uid: string, @Query() query: StatsQueryDto) {
+    return this.service.stats(user, uid, Math.min(query.days ?? 14, 366), query.parent ?? null);
   }
 
   // Todos -------------------------------------------------------------------------------------
 
   @Post(':uid/todos')
-  addTodo(@Param('uid') uid: string, @Body() body: CreateTodoDto) {
-    return this.service.addTodo(uid, body);
+  addTodo(@User() user: string, @Param('uid') uid: string, @Body() body: CreateTodoDto) {
+    return this.service.addTodo(user, uid, body);
   }
 
   @Patch(':uid/todos/:id')
-  updateTodo(@Param('uid') uid: string, @Param('id', ParseIntPipe) id: number, @Body() body: UpdateTodoDto) {
-    return this.service.updateTodo(uid, id, body);
+  updateTodo(@User() user: string, @Param('uid') uid: string, @Param('id', ParseIntPipe) id: number, @Body() body: UpdateTodoDto) {
+    return this.service.updateTodo(user, uid, id, body);
   }
 
   @Delete(':uid/todos/:id')
-  deleteTodo(@Param('uid') uid: string, @Param('id', ParseIntPipe) id: number, @Query() query: DeleteTodoQueryDto) {
-    return this.service.deleteTodo(uid, id, query.mode ?? 'subtree');
+  deleteTodo(@User() user: string, @Param('uid') uid: string, @Param('id', ParseIntPipe) id: number, @Query() query: DeleteTodoQueryDto) {
+    return this.service.deleteTodo(user, uid, id, query.mode ?? 'subtree');
   }
 
   /** "How far along?": refines the ETA */
   @Post(':uid/todos/:id/checkins')
-  checkIn(@Param('uid') uid: string, @Param('id', ParseIntPipe) id: number, @Body() body: CheckInDto) {
-    return this.service.checkIn(uid, id, body.progress, body.note ?? '');
+  checkIn(@User() user: string, @Param('uid') uid: string, @Param('id', ParseIntPipe) id: number, @Body() body: CheckInDto) {
+    return this.service.checkIn(user, uid, id, body.progress, body.note ?? '');
   }
 
   /** Discards the running session */
   @Delete(':uid/todos/:id/timer')
-  resetTimer(@Param('uid') uid: string, @Param('id', ParseIntPipe) id: number) {
-    return this.service.resetTimer(uid, id);
+  resetTimer(@User() user: string, @Param('uid') uid: string, @Param('id', ParseIntPipe) id: number) {
+    return this.service.resetTimer(user, uid, id);
   }
 
   /** Moves a todo that isn't running (with its subtree) to the archive */
   @Post(':uid/todos/:id/archive')
-  archive(@Param('uid') uid: string, @Param('id', ParseIntPipe) id: number) {
-    return this.service.archive(uid, id);
+  archive(@User() user: string, @Param('uid') uid: string, @Param('id', ParseIntPipe) id: number) {
+    return this.service.archive(user, uid, id);
   }
 
   /** Brings an archived todo (with its whole archived subtree) back */
   @Post(':uid/archive/:id/restore')
-  restore(@Param('uid') uid: string, @Param('id', ParseIntPipe) id: number) {
-    return this.service.restore(uid, id);
+  restore(@User() user: string, @Param('uid') uid: string, @Param('id', ParseIntPipe) id: number) {
+    return this.service.restore(user, uid, id);
   }
 
   // Files (sync) ------------------------------------------------------------------------------
 
   @Get(':uid/files')
-  files(@Param('uid') uid: string) {
-    return this.service.files(uid);
+  files(@User() user: string, @Param('uid') uid: string) {
+    return this.service.files(user, uid);
   }
 
   @Put(':uid/files')
-  pushFiles(@Param('uid') uid: string, @Body() body: PushFilesDto) {
-    return this.service.pushFiles(uid, body);
+  pushFiles(@User() user: string, @Param('uid') uid: string, @Body() body: PushFilesDto) {
+    return this.service.pushFiles(user, uid, body);
   }
 }

@@ -66,9 +66,9 @@ mkdir data
 sh scripts/deploy.sh            # build, start, clean up old images and build cache
 ```
 
-Data lives in `data/` (`data/workspaces/<uid>/TODO.md`, plain Markdown). Deleted workspaces go to `data/trash`. Put TLS and your login service in front with a reverse proxy (see DEPLOY.md).
+Data lives in `data/`, one folder per user (`data/users/<user id>/workspaces/<uid>/TODO.md`, plain Markdown). Deleted workspaces go to that user's `trash` folder. Put TLS and your login service in front with a reverse proxy (see DEPLOY.md).
 
-The server does no authentication of its own: the login service in front of it decides who gets in, so nothing but the reverse proxy may be able to reach it. Browsers use their normal login. The CLI, the daemon and the tray apps log in once with `tasks login` or the tray's "Log in…": you approve it in a browser on any device, and they share the session in `~/.config/tasks/session.json`.
+Each user only sees their own projects, and starting a task only pauses that user's other tasks, so several people can work at the same time. The login service decides who gets in: nginx asks it first, and then the server itself asks it who the user is and whether they have the `tasks` permission, sending it the request's session cookie. Browsers use their normal login. The CLI, the daemon and the tray apps log in once with `tasks login` or the tray's "Log in…": you approve it in a browser on any device, and they share the session in `~/.config/tasks/session.json`.
 
 ## CLI and daemon
 
@@ -88,12 +88,13 @@ tasks completion install                                     # Tab completion fo
 | `tasks status` | State of every linked project |
 | `tasks sync` | Syncs now |
 | `tasks clone <uid>` | Links a folder to a project created in the web app |
-| `tasks list --remote` | Every project on the server, with its uid |
+| `tasks list --remote` | Your projects on the server, with their uids |
 | `tasks forget` | Stops syncing a folder (nothing is deleted) |
 
 `tasks init` behaves like this:
 - In a folder that is already registered, it does nothing.
 - In a folder whose `TODO.md` belongs to a workspace the server knows (another machine, a moved folder), it only registers the folder.
+- In a folder whose `TODO.md` belongs to a workspace the server doesn't have for your account, it offers to make a new one from the folder's files, keeping their todos, ids, time and archive (`--new` doesn't ask).
 - Otherwise it creates a new workspace.
 
 ## Tray apps

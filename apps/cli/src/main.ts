@@ -22,7 +22,7 @@ Projects:
   tasks show [dir] [--history]             browse the folder's TODO.md in the terminal
   tasks sync [dir]                         sync one project (all when omitted)
   tasks status                             state of every registered project
-  tasks list [--remote]                    registered projects (or every project on the server, with uids)
+  tasks list [--remote]                    registered projects (or your projects on the server, with uids)
   tasks forget [dir]                       stop syncing a folder (files stay)
 
 Daemon:

@@ -30,7 +30,7 @@ export interface WorkspaceDocument {
   workspace: Workspace;
   archive: Workspace;
   /**
-   * Minutes per weight point across all projects: turns weight into time while a project has no
+   * Minutes per weight point across all of the user's projects: turns weight into time while a project has no
    * finished work of its own
    */
   velocity: number | null;
@@ -42,6 +42,12 @@ export interface CreateWorkspaceRequest {
   name: string;
   description?: string;
   timezone: string;
+  /**
+   * A project folder's TODO.md and TODO.archive.md, to make the workspace from them (registering a
+   * folder again): todos keep their ids, history and archive
+   */
+  todo?: string;
+  archive?: string;
 }
 
 /** PATCH /workspaces/:uid */

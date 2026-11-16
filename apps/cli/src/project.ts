@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, promises as fs, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { isEditedLocally, parseWorkspace } from '@tasks/core';
-import { Client } from './client';
+import { Client, RemoteError } from './client';
 
 export const TODO_FILE = 'TODO.md';
 export const ARCHIVE_FILE = 'TODO.archive.md';
@@ -42,6 +42,18 @@ export interface SyncOutcome {
  * is downloaded instead: deleting TODO.md never deletes todos on the server.
  */
 export async function syncProject(client: Client, uid: string, dir: string): Promise<SyncOutcome> {
+  try {
+    return await syncFiles(client, uid, dir);
+  } catch (error) {
+    if (error instanceof RemoteError && error.status === 404) {
+      throw new Error(`The remote has no project ${uid} for this account (each user has their own projects). `
+        + `Run "tasks init" in ${dir} to register it again`);
+    }
+    throw error;
+  }
+}
+
+async function syncFiles(client: Client, uid: string, dir: string): Promise<SyncOutcome> {
   if (!existsSync(dir)) {
     throw new Error(`Folder ${dir} does not exist (run "tasks forget" if it moved for good)`);
   }
@@ -74,7 +86,7 @@ export async function syncProject(client: Client, uid: string, dir: string): Pro
   return { pulled, pushed: result.changed, notes: result.notes, issues: result.issues, revision: result.revision, writtenHash: hashText(result.todo) };
 }
 
-async function writeFiles(dir: string, todo: string | null, archive: string): Promise<void> {
+export async function writeFiles(dir: string, todo: string | null, archive: string): Promise<void> {
   if (todo != null) {
     await writeAtomic(todoPath(dir), todo);
   }
