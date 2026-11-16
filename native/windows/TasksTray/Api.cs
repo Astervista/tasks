@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace TasksTray;
@@ -9,7 +10,7 @@ namespace TasksTray;
 /// <param name="PauseOnSleep">Pause the running task when the computer sleeps (default true)</param>
 /// <param name="CheckInMinutes">Ask "how far along?" after this many minutes of running (default 45, 0 = never)</param>
 /// <param name="CheckInGraceMinutes">Pause as of the question when nobody answers in time (default 10)</param>
-public record Config(string? Remote, bool? PauseOnSleep, double? CheckInMinutes, double? CheckInGraceMinutes)
+public record Config(string? Remote, bool? PauseOnSleep, double? CheckInMinutes, double? CheckInGraceMinutes, bool? PauseUnansweredCheckIns)
 {
     public static string Directory => Environment.GetEnvironmentVariable("TASKS_CONFIG_DIR")
         ?? System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config", "tasks");
@@ -26,6 +27,20 @@ public record Config(string? Remote, bool? PauseOnSleep, double? CheckInMinutes,
         {
             return null;
         }
+    }
+
+    /// <summary>Changes one setting, keeping everything else in the file (shared with the CLI and the daemon)</summary>
+    public static void Set(string key, JsonNode value)
+    {
+        JsonObject json;
+        try { json = JsonNode.Parse(File.ReadAllText(Path)) as JsonObject ?? new JsonObject(); }
+        catch (FileNotFoundException) { json = new JsonObject(); }
+        catch (DirectoryNotFoundException) { json = new JsonObject(); }
+        json[key] = value;
+        System.IO.Directory.CreateDirectory(Directory);
+        var temp = Path + ".tmp";
+        File.WriteAllText(temp, json.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+        File.Move(temp, Path, overwrite: true);
     }
 }
 

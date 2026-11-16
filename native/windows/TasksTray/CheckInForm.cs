@@ -8,7 +8,7 @@ public record CheckInAnswer(CheckInKind Kind, double Progress = 0);
 /// <summary>A small topmost window that asks about the running task</summary>
 internal sealed class CheckInForm : FloatingForm
 {
-    public CheckInForm(string task, string worked, DateTimeOffset deadline, Action<CheckInAnswer> answer) : base(440, 196)
+    public CheckInForm(string task, string worked, DateTimeOffset? deadline, Action<CheckInAnswer> answer) : base(440, 196)
     {
         Text = "Check in";
 
@@ -42,8 +42,17 @@ internal sealed class CheckInForm : FloatingForm
         keepGoing.Click += (_, _) => Answer(new CheckInAnswer(CheckInKind.KeepGoing));
         Controls.AddRange([done, pause, keepGoing]);
         y += 44;
-        AddText($"No answer by {deadline.ToLocalTime():t} pauses it as of the question.", 20, y, 400, Theme.Secondary, new Font("Segoe UI", 8.5f));
-        ClientSize = new Size(440, y + 30);
+        // No deadline: unanswered check-ins don't pause anything
+        if (deadline is { } until)
+        {
+            AddText($"No answer by {until.ToLocalTime():t} pauses it as of the question.", 20, y, 400, Theme.Secondary, new Font("Segoe UI", 8.5f));
+            y += 30;
+        }
+        else
+        {
+            y = done.Bottom + 18;
+        }
+        ClientSize = new Size(440, y);
         PlaceByTray();
         // Closing the window is no answer: the grace period still runs
     }

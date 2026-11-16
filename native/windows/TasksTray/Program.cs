@@ -195,6 +195,21 @@ internal sealed class TrayContext : ApplicationContext
 
     private TimeSpan CheckInInterval => TimeSpan.FromMinutes(config?.CheckInMinutes ?? 45);
     private TimeSpan CheckInGrace => TimeSpan.FromMinutes(config?.CheckInGraceMinutes ?? 10);
+    /// <summary>Off: an unanswered check-in just waits for an answer, and the task keeps running</summary>
+    private bool PauseUnanswered => config?.PauseUnansweredCheckIns ?? Config.Load()?.PauseUnansweredCheckIns ?? true;
+
+    private void SetPauseUnanswered(bool on)
+    {
+        try { Config.Set("pauseUnansweredCheckIns", on); }
+        catch (Exception error) { problem = $"Could not save the setting: {error.Message}"; return; }
+        config = (config ?? Config.Load()) is { } loaded ? loaded with { PauseUnansweredCheckIns = on } : null;
+        // An open question was asked under the old rule: ask again, with (or without) a deadline
+        if (checkInForm is { IsDisposed: false })
+        {
+            CloseCheckIn();
+            CheckInTick();
+        }
+    }
 
     private void CheckInTick()
     {
@@ -206,7 +221,7 @@ internal sealed class TrayContext : ApplicationContext
         }
         if (promptedAt is { } asked)
         {
-            if (DateTimeOffset.Now - asked >= CheckInGrace)
+            if (PauseUnanswered && DateTimeOffset.Now - asked >= CheckInGrace)
             {
                 // Nobody answered: the work stopped when we asked
                 CloseCheckIn();
@@ -234,7 +249,7 @@ internal sealed class TrayContext : ApplicationContext
         CloseCheckIn();
         var asked = DateTimeOffset.Now;
         promptedAt = asked;
-        checkInForm = new CheckInForm(task.Todo.Name, Format(task.Minutes + Elapsed), asked + CheckInGrace, answer => _ = Answered(answer, task));
+        checkInForm = new CheckInForm(task.Todo.Name, Format(task.Minutes + Elapsed), PauseUnanswered ? asked + CheckInGrace : null, answer => _ = Answered(answer, task));
         checkInForm.Show();
         checkInForm.Activate();
     }
@@ -470,6 +485,7 @@ internal sealed class TrayContext : ApplicationContext
         menu.Items.Add("Open web app", null, (_, _) => _ = OpenWebApp());
         menu.Items.Add("Open in browser", null, (_, _) => OpenInBrowser());
         menu.Items.Add("Refresh", null, (_, _) => _ = Refresh());
+        menu.Items.Add(new ToolStripMenuItem("Pause unanswered check-ins", null, (_, _) => SetPauseUnanswered(!PauseUnanswered)) { Checked = PauseUnanswered });
         menu.Items.Add(new ToolStripMenuItem("Start with Windows", null, (_, _) => LoginItem.Set(!LoginItem.Enabled)) { Checked = LoginItem.Enabled });
         menu.Items.Add("Quit", null, (_, _) => Quit());
     }

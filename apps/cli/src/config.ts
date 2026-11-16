@@ -16,6 +16,8 @@ export interface CliConfig {
   checkInMinutes?: number;
   /** Tray apps: pause as of the question when nobody answers within this many minutes; default 10 */
   checkInGraceMinutes?: number;
+  /** Tray apps: pause the task when a check-in goes unanswered (a menu toggle there); default true */
+  pauseUnansweredCheckIns?: boolean;
 }
 
 export const CONFIG_DIR = process.env['TASKS_CONFIG_DIR'] ?? join(homedir(), '.config', 'tasks');

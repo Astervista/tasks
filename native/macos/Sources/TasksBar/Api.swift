@@ -9,6 +9,8 @@ struct Config: Decodable {
     let checkInMinutes: Double?
     /// Pause as of the question when nobody answers within this many minutes (default 10)
     let checkInGraceMinutes: Double?
+    /// Pause the task when a check-in goes unanswered (default true); the menu toggles it
+    let pauseUnansweredCheckIns: Bool?
 
     static let directory: URL = {
         if let dir = ProcessInfo.processInfo.environment["TASKS_CONFIG_DIR"] {
@@ -22,6 +24,19 @@ struct Config: Decodable {
     static func load() -> Config? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         return try? JSONDecoder().decode(Config.self, from: data)
+    }
+
+    /// Changes one setting, keeping everything else in the file (shared with the CLI and the daemon)
+    static func set(_ key: String, _ value: Any) throws {
+        var json: [String: Any] = [:]
+        if let data = try? Data(contentsOf: url),
+           let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            json = object
+        }
+        json[key] = value
+        let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try data.write(to: url, options: .atomic)
     }
 }
 

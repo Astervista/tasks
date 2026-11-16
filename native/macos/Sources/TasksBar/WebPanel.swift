@@ -16,6 +16,9 @@ final class WebPanel {
     private var loadedToken: String?
     /// Called when the page lands on the login service: the tool login takes over
     var needsLogin: () -> Void = {}
+    /// The menu-bar button to point at
+    weak var anchor: NSView?
+    private let watcher = PopoverWatcher()
 
     init() {
         navigation.leftForLogin = { [weak self] in
@@ -29,13 +32,17 @@ final class WebPanel {
         popover.animates = true
         popover.appearance = NSAppearance(named: .darkAqua)
         popover.contentSize = NSSize(width: 440, height: 680)
+        popover.delegate = watcher
     }
 
     var isOpen: Bool { popover.isShown }
 
+    /// A click on the icon first closes the transient popover, then arrives as a click: that one only closes it
+    var justClosed: Bool { watcher.closedAt.map { Date().timeIntervalSince($0) < 0.3 } ?? false }
+
     /// Opens under the menu-bar icon; false when the icon can't be found (the caller opens the browser)
     func show(url: URL) -> Bool {
-        guard let anchor = Self.statusItemButton() else { return false }
+        guard let anchor = anchor ?? Self.statusItemButton() else { return false }
         let webView = self.webView ?? makeWebView()
         let session = Session.load()
         if home != url || loadedToken != session?.token || webView.url == nil {
@@ -100,6 +107,15 @@ final class WebPanel {
         NSApp.windows
             .first { $0.className.contains("NSStatusBarWindow") && $0.isVisible }?
             .contentView
+    }
+}
+
+/// Remembers when the popover closed
+private final class PopoverWatcher: NSObject, NSPopoverDelegate {
+    var closedAt: Date?
+
+    func popoverDidClose(_ notification: Notification) {
+        closedAt = Date()
     }
 }
 

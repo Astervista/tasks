@@ -9,6 +9,8 @@ final class TasksModel: ObservableObject {
     @Published var problem: String?
     @Published var needsLogin = false
     @Published var now = Date()
+    /// Off: an unanswered check-in just waits for an answer, and the task keeps running
+    @Published private(set) var pauseUnanswered = Config.load()?.pauseUnansweredCheckIns ?? true
 
     private(set) var api: Api?
     private var config: Config?
@@ -148,7 +150,7 @@ final class TasksModel: ObservableObject {
             return
         }
         if let promptedAt {
-            if Date().timeIntervalSince(promptedAt) >= checkInGrace {
+            if pauseUnanswered && Date().timeIntervalSince(promptedAt) >= checkInGrace {
                 // Nobody answered: the work stopped when we asked
                 self.promptedAt = nil
                 panel.close()
@@ -175,8 +177,24 @@ final class TasksModel: ObservableObject {
         let asked = Date()
         promptedAt = asked
         NSApp.activate(ignoringOtherApps: true)
-        panel.show(task: current.todo.name, workedMinutes: minutes, deadline: asked.addingTimeInterval(checkInGrace)) { [weak self] answer in
+        panel.show(task: current.todo.name, workedMinutes: minutes, deadline: pauseUnanswered ? asked.addingTimeInterval(checkInGrace) : nil) { [weak self] answer in
             Task { @MainActor [weak self] in await self?.answered(answer, for: current) }
+        }
+    }
+
+    func setPauseUnanswered(_ on: Bool) {
+        do {
+            try Config.set("pauseUnansweredCheckIns", on)
+        } catch {
+            problem = "Could not save the setting: \(error.localizedDescription)"
+            return
+        }
+        pauseUnanswered = on
+        // An open question was asked under the old rule: ask again, with (or without) a deadline
+        if panel.isOpen {
+            panel.close()
+            promptedAt = nil
+            checkInTick()
         }
     }
 
@@ -214,6 +232,7 @@ final class TasksModel: ObservableObject {
             }
             self.api = api
             self.config = config
+            pauseUnanswered = config.pauseUnansweredCheckIns ?? true
             let token = Session.load()?.token
             await refresh()
             if problem == nil { Task { await offerResume() } }
@@ -263,6 +282,25 @@ final class TasksModel: ObservableObject {
     func logIn() {
         guard let api else { return }
         loginPanel.show(api: api)
+    }
+
+    /// Where the web app's popover points: the menu-bar button
+    var webAnchor: NSView? {
+        get { webPanel.anchor }
+        set { webPanel.anchor = newValue }
+    }
+
+    /// A click on the icon: opens the web app, or closes it when it's open
+    func toggleWebApp() {
+        if webPanel.isOpen || webPanel.justClosed {
+            webPanel.close()
+        } else {
+            openWebApp()
+        }
+    }
+
+    func closeWebApp() {
+        webPanel.close()
     }
 
     /// The web app in a popover under the icon; the browser when that isn't possible
@@ -331,118 +369,28 @@ final class TasksModel: ObservableObject {
     }
 }
 
-/// "Switch to": workspaces, then macrotasks as nested submenus (5 levels at most)
-struct SwitchMenu: View {
-    @ObservedObject var model: TasksModel
-    let uid: String
-    let parentId: Int?
-
-    var body: some View {
-        ForEach(model.openTodos.filter { $0.uid == uid && $0.parentId == parentId }) { todo in
-            let children = model.openTodos.contains { $0.uid == uid && $0.parentId == todo.id }
-            if children {
-                Menu(todo.name) {
-                    Button("Start “\(todo.name)”") { model.setStatus("running", uid: uid, id: todo.id) }
-                    Divider()
-                    SwitchMenu(model: model, uid: uid, parentId: todo.id)
-                }
-            } else {
-                Button(todo.status == "running" ? "▶ \(todo.name)" : todo.name) {
-                    model.setStatus("running", uid: uid, id: todo.id)
-                }
-                .disabled(todo.status == "running")
-            }
-        }
-    }
-}
-
-struct MenuContent: View {
-    @ObservedObject var model: TasksModel
-    @ObservedObject var loginItem: LoginItem
-
-    /// Workspaces, most recently worked first
-    private var workspaces: [(uid: String, name: String)] {
-        var seen = [String: (name: String, last: Double)]()
-        for todo in model.openTodos {
-            let last = max(seen[todo.uid]?.last ?? 0, todo.lastWorked ?? 0)
-            seen[todo.uid] = (todo.workspace, last)
-        }
-        return seen.sorted { $0.value.last > $1.value.last }.map { ($0.key, $0.value.name) }
-    }
-
-    var body: some View {
-        if let current = model.current {
-            Text((current.path + [current.todo.name]).joined(separator: " › "))
-            Text("\(current.workspace) · \(TasksModel.format(model.minutes))")
-            Divider()
-            if model.running {
-                Button("Pause") { model.setStatus("paused", uid: current.uid, id: current.todo.id) }
-                    .keyboardShortcut("p")
-            } else {
-                Button("Resume") { model.setStatus("running", uid: current.uid, id: current.todo.id) }
-                    .keyboardShortcut("r")
-            }
-            Button("Done") { model.setStatus("done", uid: current.uid, id: current.todo.id) }
-                .keyboardShortcut("d")
-            if model.running {
-                Button("Check in…") { model.askCheckIn() }
-            }
-            if let eta = current.eta.remaining {
-                Text(current.eta.over ? "Over the estimate" : "ETA: ~\(TasksModel.format(max(0, eta - (model.minutes - current.minutes)))) left")
-            }
-        } else {
-            Text("No task yet")
-        }
-        Menu("Switch to") {
-            ForEach(workspaces, id: \.uid) { workspace in
-                Menu(workspace.name) { SwitchMenu(model: model, uid: workspace.uid, parentId: nil) }
-            }
-        }
-        .disabled(model.openTodos.isEmpty)
-        Divider()
-        Text("Today: \(TasksModel.format(model.todayMinutes))")
-        if let problem = model.problem {
-            Text("⚠︎ \(problem)")
-        } else if !model.connected {
-            Text("⚠︎ Offline")
-        }
-        if model.needsLogin {
-            Button("Log in…") { model.logIn() }
-        }
-        Divider()
-        Button("Open web app") { model.openWebApp() }
-            .keyboardShortcut("o")
-        Button("Open in browser") { model.openInBrowser() }
-        Button("Refresh") { Task { await model.refresh() } }
-        Toggle("Open at Login", isOn: Binding(get: { loginItem.enabled }, set: { loginItem.set($0) }))
-        if let problem = loginItem.problem {
-            Text(problem)
-        }
-        Button("Quit") { NSApp.terminate(nil) }.keyboardShortcut("q")
-    }
-}
-
+/// Menu-bar only: no Dock icon and no window, just the icon (see StatusItemController)
 @main
 struct TasksBarApp: App {
-    @StateObject private var model = TasksModel()
-    @StateObject private var loginItem = LoginItem()
-
-    init() {
-        // Menu-bar only: no Dock icon, no main window
-        NSApplication.shared.setActivationPolicy(.accessory)
-    }
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
     var body: some Scene {
-        MenuBarExtra {
-            MenuContent(model: model, loginItem: loginItem)
-                .onAppear { loginItem.refresh() }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: model.running ? "play.circle.fill" : (model.connected ? "checklist" : "exclamationmark.triangle"))
-                if !model.title.isEmpty {
-                    Text(model.title).monospacedDigit()
-                }
-            }
-        }
+        Settings { EmptyView() }
+    }
+}
+
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var model: TasksModel?
+    private var loginItem: LoginItem?
+    private var statusItem: StatusItemController?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+        let model = TasksModel()
+        let loginItem = LoginItem()
+        statusItem = StatusItemController(model: model, loginItem: loginItem)
+        self.model = model
+        self.loginItem = loginItem
     }
 }
